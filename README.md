@@ -1,5 +1,32 @@
 # React + TypeScript + Vite
 
+## OpenCV Backend (Optional)
+
+The frontend can send frames to a local backend at `http://127.0.0.1:8000/process`.
+
+1. Create and activate a Python virtual environment:
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2. Install backend dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Start backend server:
+```bash
+uvicorn server:app --reload --port 8000
+```
+
+4. Quick health checks:
+```bash
+curl http://127.0.0.1:8000/health
+curl -I http://127.0.0.1:8000/process
+```
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
