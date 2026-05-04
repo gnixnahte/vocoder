@@ -14,10 +14,17 @@ function App() {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const timerRef = useRef<number | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const micGainRef = useRef<GainNode | null>(null)
 
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
   const [fps, setFps] = useState(8)
   const [cameraOn, setCameraOn] = useState(false)
+  const [micOn, setMicOn] = useState(false)
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
+  const [selectedAudioInputId, setSelectedAudioInputId] = useState('')
   const [processedSrc, setProcessedSrc] = useState('')
   const [status, setStatus] = useState('Idle')
   const [handsCount, setHandsCount] = useState(0)
@@ -89,6 +96,97 @@ function App() {
       setStatus('Camera started. Processing...')
     } catch (error) {
       setStatus(`Camera error: ${error instanceof Error ? error.message : 'unknown error'}`)
+    }
+  }
+
+  const getAudioContext = () => {
+    if (audioContextRef.current) return audioContextRef.current
+    const AudioContextCtor =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextCtor) {
+      throw new Error('Web Audio API is not supported in this browser.')
+    }
+    const audioContext = new AudioContextCtor({
+      latencyHint: 'interactive',
+    })
+    audioContextRef.current = audioContext
+    return audioContext
+  }
+
+  const fadeMicGain = (targetValue: number) => {
+    const audioContext = audioContextRef.current
+    const gainNode = micGainRef.current
+    if (!audioContext || !gainNode) return
+    const now = audioContext.currentTime
+    gainNode.gain.cancelScheduledValues(now)
+    gainNode.gain.setValueAtTime(gainNode.gain.value, now)
+    gainNode.gain.linearRampToValueAtTime(targetValue, now + 0.03)
+  }
+
+  const stopMic = () => {
+    fadeMicGain(0)
+    window.setTimeout(() => {
+      micSourceRef.current?.disconnect()
+      micGainRef.current?.disconnect()
+      micStreamRef.current?.getTracks().forEach((track) => track.stop())
+      micSourceRef.current = null
+      micGainRef.current = null
+      micStreamRef.current = null
+      setMicOn(false)
+      setStatus('Mic off')
+    }, 50)
+  }
+
+  const refreshAudioInputs = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const nextInputs = devices.filter((device) => device.kind === 'audioinput')
+      setAudioInputs(nextInputs)
+      setSelectedAudioInputId((currentId) => {
+        if (!nextInputs.length) return ''
+        if (currentId && nextInputs.some((device) => device.deviceId === currentId)) {
+          return currentId
+        }
+        return nextInputs[0].deviceId
+      })
+    } catch (error) {
+      setStatus(
+        `Device list error: ${error instanceof Error ? error.message : 'unknown error'}`,
+      )
+    }
+  }
+
+  const startMic = async (deviceId?: string) => {
+    try {
+      const audioContext = getAudioContext()
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume()
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false,
+        },
+        video: false,
+      })
+      const source = audioContext.createMediaStreamSource(stream)
+      const gainNode = audioContext.createGain()
+      gainNode.gain.value = 0
+      source.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+
+      micStreamRef.current = stream
+      micSourceRef.current = source
+      micGainRef.current = gainNode
+      setMicOn(true)
+      await refreshAudioInputs()
+      setStatus('Mic on (monitoring live audio)')
+      fadeMicGain(1)
+    } catch (error) {
+      setStatus(`Mic error: ${error instanceof Error ? error.message : 'unknown error'}`)
     }
   }
 
@@ -183,8 +281,33 @@ function App() {
   }, [])
 
   useEffect(() => {
+    void refreshAudioInputs()
+    const mediaDevices = navigator.mediaDevices
+    if (!mediaDevices) return
+
+    const handleDeviceChange = () => {
+      void refreshAudioInputs()
+    }
+    mediaDevices.addEventListener('devicechange', handleDeviceChange)
+    return () => {
+      mediaDevices.removeEventListener('devicechange', handleDeviceChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!micOn) return
+    stopMic()
+    window.setTimeout(() => {
+      void startMic(selectedAudioInputId)
+    }, 60)
+  }, [selectedAudioInputId])
+
+  useEffect(() => {
     return () => {
       stopCamera()
+      stopMic()
+      void audioContextRef.current?.close()
+      audioContextRef.current = null
       setProcessedSrc((prev) => {
         if (prev) URL.revokeObjectURL(prev)
         return ''
@@ -221,12 +344,43 @@ function App() {
           />
         </label>
 
+        <label>
+          Mic Input Device
+          <select
+            value={selectedAudioInputId}
+            onChange={(e) => setSelectedAudioInputId(e.target.value)}
+            style={{ width: '100%', padding: '8px', marginTop: '6px' }}
+          >
+            {audioInputs.length ? (
+              audioInputs.map((device, index) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Microphone ${index + 1}`}
+                </option>
+              ))
+            ) : (
+              <option value="">No microphones found</option>
+            )}
+          </select>
+        </label>
+
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button type="button" onClick={() => void startCamera()} disabled={cameraOn}>
             Start Camera
           </button>
           <button type="button" onClick={stopCamera} disabled={!cameraOn}>
             Stop Camera
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (micOn) {
+                stopMic()
+                return
+              }
+              void startMic(selectedAudioInputId)
+            }}
+          >
+            {micOn ? 'Mic Off' : 'Mic On'}
           </button>
         </div>
 
