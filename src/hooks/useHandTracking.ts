@@ -5,6 +5,15 @@ import {
   type HandLandmarkerResult,
 } from '@mediapipe/tasks-vision'
 
+const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  [5, 9], [9, 13], [13, 17], [0, 17],
+]
+
 export function useHandTracking(setStatus: (value: string) => void) {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
@@ -31,8 +40,22 @@ export function useHandTracking(setStatus: (value: string) => void) {
     )
     setHandsCount(result.handedness.length)
 
+    overlayCtx.strokeStyle = '#ff2d2d'
+    overlayCtx.lineWidth = 2
+    overlayCtx.lineCap = 'round'
+    overlayCtx.lineJoin = 'round'
     overlayCtx.fillStyle = '#ffffff'
     for (const hand of result.landmarks) {
+      for (const [startIndex, endIndex] of HAND_CONNECTIONS) {
+        const start = hand[startIndex]
+        const end = hand[endIndex]
+        if (!start || !end) continue
+        overlayCtx.beginPath()
+        overlayCtx.moveTo(start.x * overlayCanvas.width, start.y * overlayCanvas.height)
+        overlayCtx.lineTo(end.x * overlayCanvas.width, end.y * overlayCanvas.height)
+        overlayCtx.stroke()
+      }
+
       for (const landmark of hand) {
         const x = landmark.x * overlayCanvas.width
         const y = landmark.y * overlayCanvas.height
