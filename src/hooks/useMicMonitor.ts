@@ -13,6 +13,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const [micOn, setMicOn] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioInputId, setSelectedAudioInputId] = useState('')
+  const hasSeenInitialDeviceSelectionRef = useRef(false)
 
   const getAudioContext = () => {
     if (audioContextRef.current) return audioContextRef.current
@@ -130,7 +131,12 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   }, [])
 
   useEffect(() => {
+    if (!hasSeenInitialDeviceSelectionRef.current) {
+      hasSeenInitialDeviceSelectionRef.current = true
+      return
+    }
     if (!micOn) return
+    setStatus('Switching mic input...')
     stopMic()
     window.setTimeout(() => {
       void startMic(selectedAudioInputId)
