@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 type UseMicMonitorArgs = {
   setStatus: (value: string) => void
@@ -9,6 +9,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const micGainRef = useRef<GainNode | null>(null)
+  const smoothedMonitorLevelRef = useRef(1)
 
   const [micOn, setMicOn] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
@@ -49,6 +50,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       micSourceRef.current = null
       micGainRef.current = null
       micStreamRef.current = null
+      smoothedMonitorLevelRef.current = 0
       setMicOn(false)
       setStatus('Mic off')
     }, 50)
@@ -97,6 +99,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       micStreamRef.current = stream
       micSourceRef.current = source
       micGainRef.current = gainNode
+      smoothedMonitorLevelRef.current = 1
       setMicOn(true)
       await refreshAudioInputs()
       setStatus('Mic on (monitoring live audio)')
@@ -113,6 +116,18 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     }
     void startMic(selectedAudioInputId)
   }
+
+  const setMonitorLevel = useCallback((level: number) => {
+    const audioContext = audioContextRef.current
+    const gainNode = micGainRef.current
+    if (!audioContext || !gainNode) return
+
+    const clampedLevel = Math.max(0, Math.min(1, level))
+    const smoothedLevel =
+      smoothedMonitorLevelRef.current + 0.18 * (clampedLevel - smoothedMonitorLevelRef.current)
+    smoothedMonitorLevelRef.current = smoothedLevel
+    gainNode.gain.setTargetAtTime(smoothedLevel, audioContext.currentTime, 0.03)
+  }, [])
 
   useEffect(() => {
     void refreshAudioInputs()
@@ -157,5 +172,6 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     selectedAudioInputId,
     setSelectedAudioInputId,
     toggleMic,
+    setMonitorLevel,
   }
 }

@@ -13,11 +13,13 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [0, 17], [17, 18], [18, 19], [19, 20],
   [5, 9], [9, 13], [13, 17], [0, 17],
 ]
+const PALM_LANDMARK_INDICES: ReadonlyArray<number> = [0, 1, 2, 5, 9, 13, 17]
 
 export function useHandTracking(setStatus: (value: string) => void) {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
   const [handsCount, setHandsCount] = useState(0)
+  const [handHeight, setHandHeight] = useState(0)
 
   const detectHands = (video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
@@ -39,6 +41,21 @@ export function useHandTracking(setStatus: (value: string) => void) {
       performance.now(),
     )
     setHandsCount(result.handedness.length)
+    if (result.landmarks.length > 0) {
+      const primaryHand = result.landmarks[0]
+      const palmPoints = PALM_LANDMARK_INDICES
+        .map((index) => primaryHand?.[index])
+        .filter((point): point is NonNullable<typeof point> => Boolean(point))
+      if (palmPoints.length > 0) {
+        const bottomMostPalmPoint = palmPoints.reduce((lowestPoint, point) =>
+          point.y > lowestPoint.y ? point : lowestPoint,
+        )
+        const nextHandHeight = Math.max(0, Math.min(1, 1 - bottomMostPalmPoint.y))
+        setHandHeight(nextHandHeight)
+      }
+    } else {
+      setHandHeight(0)
+    }
 
     overlayCtx.strokeStyle = '#ff2d2d'
     overlayCtx.lineWidth = 2
@@ -72,6 +89,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
       overlayCtx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height)
     }
     setHandsCount(0)
+    setHandHeight(0)
   }
 
   useEffect(() => {
@@ -115,6 +133,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     overlayCanvasRef,
     detectHands, 
     clearOverlay, 
-    handsCount 
+    handsCount,
+    handHeight,
   }
 }

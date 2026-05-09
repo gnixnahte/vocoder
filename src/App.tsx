@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import { ControlsPanel } from './components/ControlsPanel'
 import { useCameraPipeline } from './hooks/useCameraPipeline'
@@ -12,7 +12,7 @@ function App() {
   const [fps, setFps] = useState(8)
   const [status, setStatus] = useState('Idle')
 
-  const { overlayCanvasRef, detectHands, clearOverlay, handsCount } = useHandTracking(setStatus)
+  const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight } = useHandTracking(setStatus)
 
   const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
     apiUrl,
@@ -28,7 +28,13 @@ function App() {
     selectedAudioInputId,
     setSelectedAudioInputId,
     toggleMic,
+    setMonitorLevel,
   } = useMicMonitor({ setStatus })
+
+  useEffect(() => {
+    const monitorLevel = 0.05 + handHeight * 0.95
+    setMonitorLevel(monitorLevel)
+  }, [handHeight, setMonitorLevel])
 
   return (
     <main style={{ padding: '24px', textAlign: 'left' }}>
