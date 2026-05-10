@@ -11,6 +11,7 @@ function App() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
   const [fps, setFps] = useState(8)
   const [status, setStatus] = useState('Idle')
+  const [monitorLevel, setMonitorLevelState] = useState(0)
 
   const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight } = useHandTracking(setStatus)
 
@@ -32,9 +33,15 @@ function App() {
   } = useMicMonitor({ setStatus })
 
   useEffect(() => {
-    const monitorLevel = 0.05 + handHeight * 0.95
-    setMonitorLevel(monitorLevel)
-  }, [handHeight, setMonitorLevel])
+    if (handsCount === 0) {
+      setMonitorLevel(0)
+      setMonitorLevelState(0)
+      return
+    }
+    const shapedLevel = Math.min(1.4, Math.pow(handHeight, 1.5) * 1.4)
+    setMonitorLevel(shapedLevel)
+    setMonitorLevelState(shapedLevel)
+  }, [handHeight, handsCount, setMonitorLevel])
 
   return (
     <main style={{ padding: '24px', textAlign: 'left' }}>
@@ -60,6 +67,8 @@ function App() {
         toggleMic={toggleMic}
         status={status}
         handsCount={handsCount}
+        handHeight={handHeight}
+        monitorLevel={monitorLevel}
       />
 
       <section
@@ -78,13 +87,13 @@ function App() {
               playsInline
               muted
               width={640}
-              height={480}
+              height={400}
               style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }}
             />
             <canvas
               ref={overlayCanvasRef}
               width={640}
-              height={480}
+              height={400}
               style={{
                 position: 'absolute',
                 inset: 0,
@@ -104,7 +113,7 @@ function App() {
               src={processedSrc}
               alt="Processed frame"
               width={640}
-              height={480}
+              height={400}
               style={{ width: '100%', border: '1px solid var(--border)' }}
             />
           ) : (

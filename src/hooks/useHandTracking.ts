@@ -13,7 +13,6 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [0, 17], [17, 18], [18, 19], [19, 20],
   [5, 9], [9, 13], [13, 17], [0, 17],
 ]
-const PALM_LANDMARK_INDICES: ReadonlyArray<number> = [0, 1, 2, 5, 9, 13, 17]
 
 export function useHandTracking(setStatus: (value: string) => void) {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -40,20 +39,32 @@ export function useHandTracking(setStatus: (value: string) => void) {
       video,
       performance.now(),
     )
+
     setHandsCount(result.handedness.length)
-    if (result.landmarks.length > 0) {
+    if (result.landmarks.length === 2) {
+      const rightHandIndex = result.handedness.findIndex((entry)=>{
+        const label = entry[0]?.categoryName?.toLowerCase()
+        return label === 'right'
+      })
+
+      const primaryHand = rightHandIndex >= 0? result.landmarks[rightHandIndex] : undefined
+      const primaryWrist = primaryHand?.[0]
+      if (!primaryWrist) return
+
+      const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
+      setHandHeight(handHeight)
+
+    } 
+    else if (result.landmarks.length === 1) {
       const primaryHand = result.landmarks[0]
-      const palmPoints = PALM_LANDMARK_INDICES
-        .map((index) => primaryHand?.[index])
-        .filter((point): point is NonNullable<typeof point> => Boolean(point))
-      if (palmPoints.length > 0) {
-        const bottomMostPalmPoint = palmPoints.reduce((lowestPoint, point) =>
-          point.y > lowestPoint.y ? point : lowestPoint,
-        )
-        const nextHandHeight = Math.max(0, Math.min(1, 1 - bottomMostPalmPoint.y))
-        setHandHeight(nextHandHeight)
-      }
-    } else {
+      const primaryWrist = primaryHand?.[0]
+
+      const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
+      setHandHeight(handHeight)
+    
+    }
+
+    else {
       setHandHeight(0)
     }
 

@@ -13,6 +13,8 @@ type ControlsPanelProps = {
   toggleMic: () => void
   status: string
   handsCount: number
+  handHeight: number
+  monitorLevel: number
 }
 
 export function ControlsPanel({
@@ -30,6 +32,8 @@ export function ControlsPanel({
   toggleMic,
   status,
   handsCount,
+  handHeight,
+  monitorLevel,
 }: ControlsPanelProps) {
   return (
     <section style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
@@ -87,6 +91,8 @@ export function ControlsPanel({
 
       <small>Status: {status}</small>
       <small>Hands detected: {handsCount}</small>
+      <small>Hand height: {handHeight.toFixed(2)}</small>
+      <small>Monitor level: {monitorLevel.toFixed(2)}</small>
     </section>
   )
 }
