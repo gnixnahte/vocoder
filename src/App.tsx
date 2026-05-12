@@ -12,6 +12,7 @@ function App() {
   const [fps, setFps] = useState(8)
   const [status, setStatus] = useState('Idle')
   const [monitorLevel, setMonitorLevelState] = useState(0)
+  const [reverbMix, setReverbMixState] = useState(0.18)
 
   const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight } = useHandTracking(setStatus)
 
@@ -30,6 +31,7 @@ function App() {
     setSelectedAudioInputId,
     toggleMic,
     setMonitorLevel,
+    setReverbMix,
   } = useMicMonitor({ setStatus })
 
   useEffect(() => {
@@ -42,6 +44,10 @@ function App() {
     setMonitorLevel(shapedLevel)
     setMonitorLevelState(shapedLevel)
   }, [handHeight, handsCount, setMonitorLevel])
+
+  useEffect(() => {
+    setReverbMix(reverbMix)
+  }, [reverbMix, setReverbMix])
 
   return (
     <main style={{ padding: '24px', textAlign: 'left' }}>
@@ -69,6 +75,8 @@ function App() {
         handsCount={handsCount}
         handHeight={handHeight}
         monitorLevel={monitorLevel}
+        reverbMix={reverbMix}
+        setReverbMix={setReverbMixState}
       />
 
       <section

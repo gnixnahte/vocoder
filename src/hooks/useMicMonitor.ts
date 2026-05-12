@@ -8,6 +8,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const dryGainRef = useRef<GainNode | null>(null)
+  const wetGainRef = useRef<GainNode | null>(null)
+  const convolverRef = useRef<ConvolverNode | null>(null)
   const micGainRef = useRef<GainNode | null>(null)
   const smoothedMonitorLevelRef = useRef(1)
 
@@ -31,6 +34,23 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     return audioContext
   }
 
+  const createImpulseResponse = (
+    audioContext: AudioContext,
+    seconds: number = 2.2,
+    decay: number = 2.8,
+  ) => {
+    const length = Math.floor(audioContext.sampleRate * seconds)
+    const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate)
+    for (let channel = 0; channel < 2; channel += 1) {
+      const data = impulse.getChannelData(channel)
+      for (let i = 0; i < length; i += 1) {
+        const t = i / length
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay)
+      }
+    }
+    return impulse
+  }
+
   const fadeMicGain = (targetValue: number) => {
     const audioContext = audioContextRef.current
     const gainNode = micGainRef.current
@@ -45,9 +65,15 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     fadeMicGain(0)
     window.setTimeout(() => {
       micSourceRef.current?.disconnect()
+      dryGainRef.current?.disconnect()
+      wetGainRef.current?.disconnect()
+      convolverRef.current?.disconnect()
       micGainRef.current?.disconnect()
       micStreamRef.current?.getTracks().forEach((track) => track.stop())
       micSourceRef.current = null
+      dryGainRef.current = null
+      wetGainRef.current = null
+      convolverRef.current = null
       micGainRef.current = null
       micStreamRef.current = null
       smoothedMonitorLevelRef.current = 0
@@ -91,13 +117,30 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
         video: false,
       })
       const source = audioContext.createMediaStreamSource(stream)
+      const dryGainNode = audioContext.createGain()
+      const wetGainNode = audioContext.createGain()
+      const convolverNode = audioContext.createConvolver()
       const gainNode = audioContext.createGain()
+
+      convolverNode.buffer = createImpulseResponse(audioContext)
+      dryGainNode.gain.value = 0.82
+      wetGainNode.gain.value = 0.18
       gainNode.gain.value = 0
-      source.connect(gainNode)
+
+      source.connect(dryGainNode)
+      dryGainNode.connect(gainNode)
+
+      source.connect(convolverNode)
+      convolverNode.connect(wetGainNode)
+      wetGainNode.connect(gainNode)
+
       gainNode.connect(audioContext.destination)
 
       micStreamRef.current = stream
       micSourceRef.current = source
+      dryGainRef.current = dryGainNode
+      wetGainRef.current = wetGainNode
+      convolverRef.current = convolverNode
       micGainRef.current = gainNode
       smoothedMonitorLevelRef.current = 1
       setMicOn(true)
@@ -127,6 +170,18 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       smoothedMonitorLevelRef.current + 0.18 * (clampedLevel - smoothedMonitorLevelRef.current)
     smoothedMonitorLevelRef.current = smoothedLevel
     gainNode.gain.setTargetAtTime(smoothedLevel, audioContext.currentTime, 0.03)
+  }, [])
+
+  const setReverbMix = useCallback((mix: number) => {
+    const audioContext = audioContextRef.current
+    const dryGainNode = dryGainRef.current
+    const wetGainNode = wetGainRef.current
+    if (!audioContext || !dryGainNode || !wetGainNode) return
+
+    const clampedMix = Math.max(0, Math.min(1, mix))
+    const now = audioContext.currentTime
+    dryGainNode.gain.setTargetAtTime(1 - clampedMix, now, 0.03)
+    wetGainNode.gain.setTargetAtTime(clampedMix, now, 0.03)
   }, [])
 
   useEffect(() => {
@@ -173,5 +228,6 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     setSelectedAudioInputId,
     toggleMic,
     setMonitorLevel,
+    setReverbMix,
   }
 }

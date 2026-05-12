@@ -49,22 +49,24 @@ export function useHandTracking(setStatus: (value: string) => void) {
 
       const primaryHand = rightHandIndex >= 0? result.landmarks[rightHandIndex] : undefined
       const primaryWrist = primaryHand?.[0]
-      if (!primaryWrist) return
-
-      const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
-      setHandHeight(handHeight)
-
+      if (primaryWrist) {
+        const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
+        setHandHeight(handHeight)
+      } else {
+        setHandHeight(0)
+      }
     } 
     else if (result.landmarks.length === 1) {
       const primaryHand = result.landmarks[0]
       const primaryWrist = primaryHand?.[0]
 
-      const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
-      setHandHeight(handHeight)
-    
-    }
-
-    else {
+      if (primaryWrist) {
+        const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
+        setHandHeight(handHeight)
+      } else {
+        setHandHeight(0)
+      }
+    } else {
       setHandHeight(0)
     }
 
