@@ -12,7 +12,7 @@ function App() {
   const [fps, setFps] = useState(8)
   const [status, setStatus] = useState('Idle')
   const [monitorLevel, setMonitorLevelState] = useState(0)
-  const [reverbMix, setReverbMixState] = useState(0.18)
+  const [reverbMix, setReverbMixState] = useState(0.45)
   const [isRecording, setIsRecording] = useState(false)
   const [recordedSrc, setRecordedSrc] = useState('')
   const [recordingError, setRecordingError] = useState('')
@@ -38,6 +38,7 @@ function App() {
     setMonitorLevel,
     setReverbMix,
     getMicStream,
+    getMonitorStream,
   } = useMicMonitor({ setStatus })
 
   useEffect(() => {
@@ -63,6 +64,7 @@ function App() {
 
     const videoElement = videoRef.current
     const micStream = getMicStream()
+    const monitorStream = getMonitorStream()
     if (!videoElement) {
       setRecordingError('Cannot record: camera element not available.')
       return
@@ -73,6 +75,10 @@ function App() {
     }
     if (!micStream) {
       setRecordingError('Turn mic on before recording.')
+      return
+    }
+    if (!monitorStream) {
+      setRecordingError('Processed audio stream unavailable. Turn mic on first.')
       return
     }
 
@@ -96,7 +102,7 @@ function App() {
     const videoStream = captureStreamFn()
     const combinedStream = new MediaStream([
       ...videoStream.getVideoTracks(),
-      ...micStream.getAudioTracks(),
+      ...monitorStream.getAudioTracks(),
     ])
     const chunks: BlobPart[] = []
     const recorder = new MediaRecorder(combinedStream, {

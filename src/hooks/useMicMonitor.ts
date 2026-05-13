@@ -12,6 +12,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const wetGainRef = useRef<GainNode | null>(null)
   const convolverRef = useRef<ConvolverNode | null>(null)
   const micGainRef = useRef<GainNode | null>(null)
+  const monitorDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const smoothedMonitorLevelRef = useRef(0)
 
   const [micOn, setMicOn] = useState(false)
@@ -36,8 +37,8 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
 
   const createImpulseResponse = (
     audioContext: AudioContext,
-    seconds: number = 2.2,
-    decay: number = 2.8,
+    seconds: number = 3.8,
+    decay: number = 1.9,
   ) => {
     const length = Math.floor(audioContext.sampleRate * seconds)
     const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate)
@@ -69,12 +70,14 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainRef.current?.disconnect()
       convolverRef.current?.disconnect()
       micGainRef.current?.disconnect()
+      monitorDestinationRef.current?.disconnect()
       micStreamRef.current?.getTracks().forEach((track) => track.stop())
       micSourceRef.current = null
       dryGainRef.current = null
       wetGainRef.current = null
       convolverRef.current = null
       micGainRef.current = null
+      monitorDestinationRef.current = null
       micStreamRef.current = null
       smoothedMonitorLevelRef.current = 0
       setMicOn(false)
@@ -119,12 +122,15 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       const source = audioContext.createMediaStreamSource(stream)
       const dryGainNode = audioContext.createGain()
       const wetGainNode = audioContext.createGain()
+      const wetBoostNode = audioContext.createGain()
       const convolverNode = audioContext.createConvolver()
       const gainNode = audioContext.createGain()
+      const monitorDestination = audioContext.createMediaStreamDestination()
 
       convolverNode.buffer = createImpulseResponse(audioContext)
-      dryGainNode.gain.value = 0.82
-      wetGainNode.gain.value = 0.18
+      dryGainNode.gain.value = 0.7
+      wetGainNode.gain.value = 0.3
+      wetBoostNode.gain.value = 1.8
       gainNode.gain.value = 0
 
       source.connect(dryGainNode)
@@ -132,9 +138,11 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
 
       source.connect(convolverNode)
       convolverNode.connect(wetGainNode)
-      wetGainNode.connect(gainNode)
+      wetGainNode.connect(wetBoostNode)
+      wetBoostNode.connect(gainNode)
 
       gainNode.connect(audioContext.destination)
+      gainNode.connect(monitorDestination)
 
       micStreamRef.current = stream
       micSourceRef.current = source
@@ -142,6 +150,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainRef.current = wetGainNode
       convolverRef.current = convolverNode
       micGainRef.current = gainNode
+      monitorDestinationRef.current = monitorDestination
       smoothedMonitorLevelRef.current = 0
       setMicOn(true)
       await refreshAudioInputs()
@@ -230,5 +239,6 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     setMonitorLevel,
     setReverbMix,
     getMicStream: () => micStreamRef.current,
+    getMonitorStream: () => monitorDestinationRef.current?.stream ?? null,
   }
 }
