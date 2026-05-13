@@ -46,7 +46,7 @@ function App() {
       setMonitorLevelState(0)
       return
     }
-    const shapedLevel = Math.min(1.4, Math.pow(handHeight, 1.5) * 1.4)
+    const shapedLevel = Math.min(2, Math.pow(handHeight, 1.8) * 2)
     setMonitorLevel(shapedLevel)
     setMonitorLevelState(shapedLevel)
   }, [handHeight, handsCount, setMonitorLevel])

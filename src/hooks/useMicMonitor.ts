@@ -12,7 +12,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const wetGainRef = useRef<GainNode | null>(null)
   const convolverRef = useRef<ConvolverNode | null>(null)
   const micGainRef = useRef<GainNode | null>(null)
-  const smoothedMonitorLevelRef = useRef(1)
+  const smoothedMonitorLevelRef = useRef(0)
 
   const [micOn, setMicOn] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
@@ -142,11 +142,11 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainRef.current = wetGainNode
       convolverRef.current = convolverNode
       micGainRef.current = gainNode
-      smoothedMonitorLevelRef.current = 1
+      smoothedMonitorLevelRef.current = 0
       setMicOn(true)
       await refreshAudioInputs()
       setStatus('Mic on (monitoring live audio)')
-      fadeMicGain(1)
+      fadeMicGain(0)
     } catch (error) {
       setStatus(`Mic error: ${error instanceof Error ? error.message : 'unknown error'}`)
     }
@@ -165,9 +165,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     const gainNode = micGainRef.current
     if (!audioContext || !gainNode) return
 
-    const clampedLevel = Math.max(0, Math.min(1, level))
+    const clampedLevel = Math.max(0, Math.min(2, level))
     const smoothedLevel =
-      smoothedMonitorLevelRef.current + 0.18 * (clampedLevel - smoothedMonitorLevelRef.current)
+      smoothedMonitorLevelRef.current + 0.35 * (clampedLevel - smoothedMonitorLevelRef.current)
     smoothedMonitorLevelRef.current = smoothedLevel
     gainNode.gain.setTargetAtTime(smoothedLevel, audioContext.currentTime, 0.03)
   }, [])
