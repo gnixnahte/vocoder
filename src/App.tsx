@@ -13,6 +13,11 @@ function App() {
   const [status, setStatus] = useState('Idle')
   const [monitorLevel, setMonitorLevelState] = useState(0)
   const [reverbMix, setReverbMixState] = useState(0.18)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordedSrc, setRecordedSrc] = useState('')
+  const [recordingError, setRecordingError] = useState('')
+  const [recordingLabel, setRecordingLabel] = useState('')
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
 
   const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight } = useHandTracking(setStatus)
 
@@ -32,6 +37,7 @@ function App() {
     toggleMic,
     setMonitorLevel,
     setReverbMix,
+    getMicStream,
   } = useMicMonitor({ setStatus })
 
   useEffect(() => {
@@ -48,6 +54,92 @@ function App() {
   useEffect(() => {
     setReverbMix(reverbMix)
   }, [reverbMix, setReverbMix])
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      mediaRecorder?.stop()
+      return
+    }
+
+    const videoElement = videoRef.current
+    const micStream = getMicStream()
+    if (!videoElement) {
+      setRecordingError('Cannot record: camera element not available.')
+      return
+    }
+    if (!cameraOn) {
+      setRecordingError('Start camera before recording.')
+      return
+    }
+    if (!micStream) {
+      setRecordingError('Turn mic on before recording.')
+      return
+    }
+
+    const captureStreamFn = (
+      videoElement as HTMLVideoElement & {
+        captureStream?: () => MediaStream
+        mozCaptureStream?: () => MediaStream
+      }
+    ).captureStream?.bind(videoElement)
+      ?? (
+        videoElement as HTMLVideoElement & {
+          captureStream?: () => MediaStream
+          mozCaptureStream?: () => MediaStream
+        }
+      ).mozCaptureStream?.bind(videoElement)
+    if (!captureStreamFn) {
+      setRecordingError('Recording is not supported in this browser.')
+      return
+    }
+
+    const videoStream = captureStreamFn()
+    const combinedStream = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...micStream.getAudioTracks(),
+    ])
+    const chunks: BlobPart[] = []
+    const recorder = new MediaRecorder(combinedStream, {
+      mimeType: 'video/webm;codecs=vp9,opus',
+    })
+
+    recorder.ondataavailable = (event: BlobEvent) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data)
+      }
+    }
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' })
+      const nextUrl = URL.createObjectURL(blob)
+      setRecordedSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return nextUrl
+      })
+      setIsRecording(false)
+      setMediaRecorder(null)
+      setRecordingLabel(`Recorded ${Math.round(blob.size / 1024)} KB`)
+      setRecordingError('')
+      combinedStream.getTracks().forEach((track) => track.stop())
+    }
+    recorder.onerror = () => {
+      setIsRecording(false)
+      setMediaRecorder(null)
+      setRecordingError('Recording failed. Please try again.')
+      combinedStream.getTracks().forEach((track) => track.stop())
+    }
+
+    setRecordingError('')
+    setRecordingLabel('Recording...')
+    setIsRecording(true)
+    setMediaRecorder(recorder)
+    recorder.start(250)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (recordedSrc) URL.revokeObjectURL(recordedSrc)
+    }
+  }, [recordedSrc])
 
   return (
     <main style={{ padding: '24px', textAlign: 'left' }}>
@@ -79,11 +171,19 @@ function App() {
         setReverbMix={setReverbMixState}
       />
 
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+        <button type="button" onClick={toggleRecording}>
+          {isRecording ? 'Stop Recording' : 'Record Video + Audio'}
+        </button>
+        {recordingLabel ? <small>{recordingLabel}</small> : null}
+        {recordingError ? <small>{recordingError}</small> : null}
+      </div>
+
       <section
         style={{
           display: 'grid',
           gap: '16px',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: '2fr 1fr',
         }}
       >
         <div>
@@ -95,13 +195,13 @@ function App() {
               playsInline
               muted
               width={640}
-              height={400}
+              height={520}
               style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }}
             />
             <canvas
               ref={overlayCanvasRef}
               width={640}
-              height={400}
+              height={520}
               style={{
                 position: 'absolute',
                 inset: 0,
@@ -121,13 +221,13 @@ function App() {
               src={processedSrc}
               alt="Processed frame"
               width={640}
-              height={400}
-              style={{ width: '100%', border: '1px solid var(--border)' }}
+              height={280}
+              style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', border: '1px solid var(--border)' }}
             />
           ) : (
             <div
               style={{
-                height: '240px',
+                height: '180px',
                 border: '1px dashed var(--border)',
                 display: 'grid',
                 placeItems: 'center',
@@ -136,6 +236,12 @@ function App() {
               Waiting for frames
             </div>
           )}
+          {recordedSrc ? (
+            <div style={{ marginTop: '12px' }}>
+              <h3 style={{ marginTop: 0 }}>Last Recording</h3>
+              <video src={recordedSrc} controls style={{ width: '100%', border: '1px solid var(--border)' }} />
+            </div>
+          ) : null}
         </div>
       </section>
 

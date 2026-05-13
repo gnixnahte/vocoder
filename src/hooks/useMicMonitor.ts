@@ -229,5 +229,6 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     toggleMic,
     setMonitorLevel,
     setReverbMix,
+    getMicStream: () => micStreamRef.current,
   }
 }
