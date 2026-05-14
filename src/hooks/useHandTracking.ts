@@ -19,6 +19,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
   const [handsCount, setHandsCount] = useState(0)
   const [handHeight, setHandHeight] = useState(0)
+  const [leftHandHeight, setLeftHandHeight] = useState(0)
 
   const detectHands = (video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
@@ -40,34 +41,28 @@ export function useHandTracking(setStatus: (value: string) => void) {
       performance.now(),
     )
 
-    setHandsCount(result.handedness.length)
-    if (result.landmarks.length === 2) {
-      const rightHandIndex = result.handedness.findIndex((entry)=>{
-        const label = entry[0]?.categoryName?.toLowerCase()
-        return label === 'right'
-      })
+    setHandsCount(result.landmarks.length)
 
-      const primaryHand = rightHandIndex >= 0? result.landmarks[rightHandIndex] : undefined
-      const primaryWrist = primaryHand?.[0]
-      if (primaryWrist) {
-        const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
-        setHandHeight(handHeight)
-      } else {
-        setHandHeight(0)
-      }
-    } 
-    else if (result.landmarks.length === 1) {
-      const primaryHand = result.landmarks[0]
-      const primaryWrist = primaryHand?.[0]
+    const rightHandIndex = result.handedness.findIndex((entry) => {
+      const label = entry[0]?.categoryName?.toLowerCase()
+      return label === 'right'
+    })
+    const leftHandIndex = result.handedness.findIndex((entry) => {
+      const label = entry[0]?.categoryName?.toLowerCase()
+      return label === 'left'
+    })
 
-      if (primaryWrist) {
-        const handHeight = Math.max(0, Math.min(1, 1 - primaryWrist.y))
-        setHandHeight(handHeight)
-      } else {
-        setHandHeight(0)
-      }
+    const rightWrist = rightHandIndex >= 0 ? result.landmarks[rightHandIndex]?.[0] : undefined
+    const leftWrist = leftHandIndex >= 0 ? result.landmarks[leftHandIndex]?.[0] : undefined
+
+    if (result.landmarks.length === 1) {
+      const singleWrist = result.landmarks[0]?.[0]
+      const singleHeight = singleWrist ? Math.max(0, Math.min(1, 1 - singleWrist.y)) : 0
+      setHandHeight(singleHeight)
+      setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
     } else {
-      setHandHeight(0)
+      setHandHeight(rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0)
+      setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
     }
 
     overlayCtx.strokeStyle = '#ff2d2d'
@@ -103,6 +98,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     }
     setHandsCount(0)
     setHandHeight(0)
+    setLeftHandHeight(0)
   }
 
   useEffect(() => {
@@ -148,5 +144,6 @@ export function useHandTracking(setStatus: (value: string) => void) {
     clearOverlay, 
     handsCount,
     handHeight,
+    leftHandHeight,
   }
 }

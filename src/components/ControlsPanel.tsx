@@ -17,6 +17,7 @@ type ControlsPanelProps = {
   monitorLevel: number
   reverbMix: number
   setReverbMix: (value: number) => void
+  leftHandHeight: number
 }
 
 export function ControlsPanel({
@@ -38,6 +39,7 @@ export function ControlsPanel({
   monitorLevel,
   reverbMix,
   setReverbMix,
+  leftHandHeight,
 }: ControlsPanelProps) {
   return (
     <section style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
@@ -109,6 +111,7 @@ export function ControlsPanel({
       <small>Status: {status}</small>
       <small>Hands detected: {handsCount}</small>
       <small>Hand height: {handHeight.toFixed(2)}</small>
+      <small>Left hand height: {leftHandHeight.toFixed(2)}</small>
       <small>Monitor level: {monitorLevel.toFixed(2)}</small>
       <small>Reverb mix: {reverbMix.toFixed(2)}</small>
     </section>

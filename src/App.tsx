@@ -19,7 +19,7 @@ function App() {
   const [recordingLabel, setRecordingLabel] = useState('')
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
 
-  const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight } = useHandTracking(setStatus)
+  const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight, leftHandHeight } = useHandTracking(setStatus)
 
   const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
     apiUrl,
@@ -53,8 +53,9 @@ function App() {
   }, [handHeight, handsCount, setMonitorLevel])
 
   useEffect(() => {
-    setReverbMix(reverbMix)
-  }, [reverbMix, setReverbMix])
+    const activeReverbMix = leftHandHeight > 0 ? leftHandHeight : reverbMix
+    setReverbMix(activeReverbMix)
+  }, [leftHandHeight, reverbMix, setReverbMix])
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -175,6 +176,7 @@ function App() {
         monitorLevel={monitorLevel}
         reverbMix={reverbMix}
         setReverbMix={setReverbMixState}
+        leftHandHeight={leftHandHeight}
       />
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
