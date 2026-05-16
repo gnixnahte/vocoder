@@ -20,6 +20,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [handsCount, setHandsCount] = useState(0)
   const [handHeight, setHandHeight] = useState(0)
   const [leftHandHeight, setLeftHandHeight] = useState(0)
+  const [singleHandPinchMix, setSingleHandPinchMix] = useState(0)
 
   const detectHands = (video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
@@ -56,13 +57,22 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const leftWrist = leftHandIndex >= 0 ? result.landmarks[leftHandIndex]?.[0] : undefined
 
     if (result.landmarks.length === 1) {
+      const singleHand = result.landmarks[0]
       const singleWrist = result.landmarks[0]?.[0]
       const singleHeight = singleWrist ? Math.max(0, Math.min(1, 1 - singleWrist.y)) : 0
+      const thumbTip = singleHand?.[4]
+      const indexTip = singleHand?.[8]
+      const pinchDistance = thumbTip && indexTip
+        ? Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y, thumbTip.z - indexTip.z)
+        : 0
+      const pinchMix = Math.max(0, Math.min(1, pinchDistance / 0.35))
       setHandHeight(singleHeight)
       setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
+      setSingleHandPinchMix(pinchMix)
     } else {
       setHandHeight(rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0)
       setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
+      setSingleHandPinchMix(0)
     }
 
     overlayCtx.strokeStyle = '#ff2d2d'
@@ -99,6 +109,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setHandsCount(0)
     setHandHeight(0)
     setLeftHandHeight(0)
+    setSingleHandPinchMix(0)
   }
 
   useEffect(() => {
@@ -145,5 +156,6 @@ export function useHandTracking(setStatus: (value: string) => void) {
     handsCount,
     handHeight,
     leftHandHeight,
+    singleHandPinchMix,
   }
 }

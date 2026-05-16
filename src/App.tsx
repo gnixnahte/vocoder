@@ -19,7 +19,15 @@ function App() {
   const [recordingLabel, setRecordingLabel] = useState('')
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
 
-  const { overlayCanvasRef, detectHands, clearOverlay, handsCount, handHeight, leftHandHeight } = useHandTracking(setStatus)
+  const {
+    overlayCanvasRef,
+    detectHands,
+    clearOverlay,
+    handsCount,
+    handHeight,
+    leftHandHeight,
+    singleHandPinchMix,
+  } = useHandTracking(setStatus)
 
   const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
     apiUrl,
@@ -53,9 +61,13 @@ function App() {
   }, [handHeight, handsCount, setMonitorLevel])
 
   useEffect(() => {
-    const activeReverbMix = leftHandHeight > 0 ? leftHandHeight : reverbMix
+    const activeReverbMix = handsCount === 1
+      ? singleHandPinchMix
+      : leftHandHeight > 0
+        ? leftHandHeight
+        : reverbMix
     setReverbMix(activeReverbMix)
-  }, [leftHandHeight, reverbMix, setReverbMix])
+  }, [handsCount, leftHandHeight, reverbMix, setReverbMix, singleHandPinchMix])
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -177,6 +189,7 @@ function App() {
         reverbMix={reverbMix}
         setReverbMix={setReverbMixState}
         leftHandHeight={leftHandHeight}
+        singleHandPinchMix={singleHandPinchMix}
       />
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
