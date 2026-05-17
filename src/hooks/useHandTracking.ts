@@ -62,10 +62,20 @@ export function useHandTracking(setStatus: (value: string) => void) {
       const singleHeight = singleWrist ? Math.max(0, Math.min(1, 1 - singleWrist.y)) : 0
       const thumbTip = singleHand?.[4]
       const indexTip = singleHand?.[8]
+      const indexMcp = singleHand?.[5]
+      const pinkyMcp = singleHand?.[17]
       const pinchDistance = thumbTip && indexTip
         ? Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y, thumbTip.z - indexTip.z)
         : 0
-      const pinchMix = Math.max(0, Math.min(1, pinchDistance / 0.35))
+      const palmWidth = indexMcp && pinkyMcp
+        ? Math.hypot(
+          indexMcp.x - pinkyMcp.x,
+          indexMcp.y - pinkyMcp.y,
+          indexMcp.z - pinkyMcp.z,
+        )
+        : 0
+      const normalizedPinch = palmWidth > 0 ? pinchDistance / (palmWidth * 1.15) : 0
+      const pinchMix = Math.max(0, Math.min(1, Math.pow(normalizedPinch, 0.85)))
       setHandHeight(singleHeight)
       setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
       setSingleHandPinchMix(pinchMix)

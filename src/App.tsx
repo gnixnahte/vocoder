@@ -12,7 +12,7 @@ function App() {
   const [fps, setFps] = useState(8)
   const [status, setStatus] = useState('Idle')
   const [monitorLevel, setMonitorLevelState] = useState(0)
-  const [reverbMix, setReverbMixState] = useState(0.45)
+  const [reverbMix, setReverbMixState] = useState(0)
   const [isRecording, setIsRecording] = useState(false)
   const [recordedSrc, setRecordedSrc] = useState('')
   const [recordingError, setRecordingError] = useState('')
@@ -63,11 +63,10 @@ function App() {
   useEffect(() => {
     const activeReverbMix = handsCount === 1
       ? singleHandPinchMix
-      : leftHandHeight > 0
-        ? leftHandHeight
-        : reverbMix
+      : leftHandHeight
     setReverbMix(activeReverbMix)
-  }, [handsCount, leftHandHeight, reverbMix, setReverbMix, singleHandPinchMix])
+    setReverbMixState(activeReverbMix)
+  }, [handsCount, leftHandHeight, setReverbMix, singleHandPinchMix])
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -187,7 +186,6 @@ function App() {
         handHeight={handHeight}
         monitorLevel={monitorLevel}
         reverbMix={reverbMix}
-        setReverbMix={setReverbMixState}
         leftHandHeight={leftHandHeight}
         singleHandPinchMix={singleHandPinchMix}
       />

@@ -16,7 +16,6 @@ type ControlsPanelProps = {
   handHeight: number
   monitorLevel: number
   reverbMix: number
-  setReverbMix: (value: number) => void
   leftHandHeight: number
   singleHandPinchMix: number
 }
@@ -39,7 +38,6 @@ export function ControlsPanel({
   handHeight,
   monitorLevel,
   reverbMix,
-  setReverbMix,
   leftHandHeight,
   singleHandPinchMix,
 }: ControlsPanelProps) {
@@ -62,19 +60,6 @@ export function ControlsPanel({
           max={30}
           value={fps}
           onChange={(e) => setFps(Number(e.target.value))}
-          style={{ width: '100%' }}
-        />
-      </label>
-
-      <label>
-        Reverb Mix ({reverbMix.toFixed(2)})
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={reverbMix}
-          onChange={(e) => setReverbMix(Number(e.target.value))}
           style={{ width: '100%' }}
         />
       </label>
