@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { ControlsPanel } from './components/ControlsPanel'
 import { useCameraPipeline } from './hooks/useCameraPipeline'
@@ -18,6 +18,8 @@ function App() {
   const [recordingError, setRecordingError] = useState('')
   const [recordingLabel, setRecordingLabel] = useState('')
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const countdownTimerRef = useRef<number | null>(null)
 
   const {
     overlayCanvasRef,
@@ -32,7 +34,7 @@ function App() {
     isFistSide,
   } = useHandTracking(setStatus)
 
-  const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
+  const { videoRef, canvasRef, cameraOn, startCamera, stopCamera } = useCameraPipeline({
     apiUrl,
     fps,
     detectHands,
@@ -69,7 +71,7 @@ function App() {
     setReverbMixState(activeReverbMix)
   }, [handsCount, leftHandHeight, setReverbMix, singleHandPinchMix])
 
-  const toggleRecording = () => {
+  const beginRecording = () => {
     if (isRecording) {
       mediaRecorder?.stop()
       return
@@ -154,9 +156,46 @@ function App() {
     recorder.start(250)
   }
 
+  const clearCountdownTimer = () => {
+    if (countdownTimerRef.current !== null) {
+      window.clearInterval(countdownTimerRef.current)
+      countdownTimerRef.current = null
+    }
+  }
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      beginRecording()
+      return
+    }
+
+    if (countdown !== null) {
+      clearCountdownTimer()
+      setCountdown(null)
+      setRecordingLabel('')
+      return
+    }
+
+    setRecordingError('')
+    setRecordingLabel('Starting in...')
+    setCountdown(3)
+    countdownTimerRef.current = window.setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null) return null
+        if (prev <= 1) {
+          clearCountdownTimer()
+          beginRecording()
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
   useEffect(() => {
     return () => {
       if (recordedSrc) URL.revokeObjectURL(recordedSrc)
+      clearCountdownTimer()
     }
   }, [recordedSrc])
 
@@ -194,78 +233,65 @@ function App() {
         isFistSide={isFistSide}
       />
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
-        <button type="button" onClick={toggleRecording}>
-          {isRecording ? 'Stop Recording' : 'Record Video + Audio'}
-        </button>
-        {recordingLabel ? <small>{recordingLabel}</small> : null}
-        {recordingError ? <small>{recordingError}</small> : null}
-      </div>
+      <section style={{ maxWidth: '700px', margin: '0 auto' }}>
+        <h2>Live Camera</h2>
+        <div style={{ position: 'relative', border: '1px solid var(--border)', aspectRatio: '4 / 3' }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            width={640}
+            height={480}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              display: 'block',
+              transform: 'scaleX(-1)',
+              background: '#000',
+            }}
+          />
+          <canvas
+            ref={overlayCanvasRef}
+            width={640}
+            height={480}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              transform: 'scaleX(-1)',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
 
-      <section
-        style={{
-          display: 'grid',
-          gap: '16px',
-          gridTemplateColumns: '2fr 1fr',
-        }}
-      >
-        <div>
-          <h2>Live Camera</h2>
-          <div style={{ position: 'relative', border: '1px solid var(--border)' }}>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              width={640}
-              height={520}
-              style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }}
-            />
-            <canvas
-              ref={overlayCanvasRef}
-              width={640}
-              height={520}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                transform: 'scaleX(-1)',
-                pointerEvents: 'none',
-              }}
-            />
+        <div style={{ display: 'grid', placeItems: 'center', marginTop: '16px', gap: '8px' }}>
+          {countdown !== null ? <div style={{ fontSize: '28px', fontWeight: 700 }}>{countdown}</div> : null}
+          <button
+            type="button"
+            onClick={toggleRecording}
+            style={{
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              border: '2px solid #e8e8e8',
+              background: isRecording ? '#8d1010' : '#d61f1f',
+              cursor: 'pointer',
+            }}
+            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+          />
+          {recordingLabel ? <small>{recordingLabel}</small> : null}
+          {recordingError ? <small>{recordingError}</small> : null}
+        </div>
+
+        {recordedSrc ? (
+          <div style={{ marginTop: '14px' }}>
+            <h3 style={{ marginTop: 0 }}>Last Recording</h3>
+            <video src={recordedSrc} controls style={{ width: '100%', border: '1px solid var(--border)' }} />
           </div>
-        </div>
-
-        <div>
-          <h2>Processed Output</h2>
-          {processedSrc ? (
-            <img
-              src={processedSrc}
-              alt="Processed frame"
-              width={640}
-              height={280}
-              style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', border: '1px solid var(--border)' }}
-            />
-          ) : (
-            <div
-              style={{
-                height: '180px',
-                border: '1px dashed var(--border)',
-                display: 'grid',
-                placeItems: 'center',
-              }}
-            >
-              Waiting for frames
-            </div>
-          )}
-          {recordedSrc ? (
-            <div style={{ marginTop: '12px' }}>
-              <h3 style={{ marginTop: 0 }}>Last Recording</h3>
-              <video src={recordedSrc} controls style={{ width: '100%', border: '1px solid var(--border)' }} />
-            </div>
-          ) : null}
-        </div>
+        ) : null}
       </section>
 
       <canvas ref={canvasRef} width={640} height={480} style={{ display: 'none' }} />
