@@ -27,6 +27,9 @@ function App() {
     handHeight,
     leftHandHeight,
     singleHandPinchMix,
+    isOpenPalmForward,
+    isFistForward,
+    isFistSide,
   } = useHandTracking(setStatus)
 
   const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
@@ -50,7 +53,7 @@ function App() {
   } = useMicMonitor({ setStatus })
 
   useEffect(() => {
-    if (handsCount === 0) {
+    if (handHeight <= 0) {
       setMonitorLevel(0)
       setMonitorLevelState(0)
       return
@@ -58,12 +61,10 @@ function App() {
     const shapedLevel = Math.min(2, Math.pow(handHeight, 1.8) * 2)
     setMonitorLevel(shapedLevel)
     setMonitorLevelState(shapedLevel)
-  }, [handHeight, handsCount, setMonitorLevel])
+  }, [handHeight, setMonitorLevel])
 
   useEffect(() => {
-    const activeReverbMix = handsCount === 1
-      ? singleHandPinchMix
-      : leftHandHeight
+    const activeReverbMix = handsCount === 1 ? singleHandPinchMix : leftHandHeight
     setReverbMix(activeReverbMix)
     setReverbMixState(activeReverbMix)
   }, [handsCount, leftHandHeight, setReverbMix, singleHandPinchMix])
@@ -188,6 +189,9 @@ function App() {
         reverbMix={reverbMix}
         leftHandHeight={leftHandHeight}
         singleHandPinchMix={singleHandPinchMix}
+        isOpenPalmForward={isOpenPalmForward}
+        isFistForward={isFistForward}
+        isFistSide={isFistSide}
       />
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>

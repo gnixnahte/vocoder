@@ -14,6 +14,110 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [5, 9], [9, 13], [13, 17], [0, 17],
 ]
 
+type LandmarkPoint = { x: number; y: number; z: number }
+
+const distance3 = (a: LandmarkPoint, b: LandmarkPoint) =>
+  Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+
+const isFingerExtended = (
+  hand: LandmarkPoint[],
+  tipIndex: number,
+  pipIndex: number,
+  mcpIndex: number,
+) => {
+  const tip = hand[tipIndex]
+  const pip = hand[pipIndex]
+  const mcp = hand[mcpIndex]
+  const wrist = hand[0]
+  if (!tip || !pip || !mcp || !wrist) return false
+  const tipToWrist = distance3(tip, wrist)
+  const pipToWrist = distance3(pip, wrist)
+  const mcpToWrist = distance3(mcp, wrist)
+  return tipToWrist > pipToWrist && pipToWrist > mcpToWrist
+}
+
+const isFingerCurled = (
+  hand: LandmarkPoint[],
+  tipIndex: number,
+  pipIndex: number,
+  mcpIndex: number,
+) => {
+  const tip = hand[tipIndex]
+  const pip = hand[pipIndex]
+  const mcp = hand[mcpIndex]
+  if (!tip || !pip || !mcp) return false
+  const tipToMcp = distance3(tip, mcp)
+  const pipToMcp = distance3(pip, mcp)
+  return tipToMcp < pipToMcp * 0.95
+}
+
+const analyzeHandShape = (hand: LandmarkPoint[]) => {
+  const wrist = hand[0]
+  const indexMcp = hand[5]
+  const middleMcp = hand[9]
+  const pinkyMcp = hand[17]
+  if (!wrist || !indexMcp || !middleMcp || !pinkyMcp) {
+    return {
+      isOpenPalmForward: false,
+      isFistForward: false,
+      isFistSide: false,
+    }
+  }
+
+  const openFingersCount = [
+    isFingerExtended(hand, 8, 6, 5),
+    isFingerExtended(hand, 12, 10, 9),
+    isFingerExtended(hand, 16, 14, 13),
+    isFingerExtended(hand, 20, 18, 17),
+  ].filter(Boolean).length
+  const curledFingersCount = [
+    isFingerCurled(hand, 8, 6, 5),
+    isFingerCurled(hand, 12, 10, 9),
+    isFingerCurled(hand, 16, 14, 13),
+    isFingerCurled(hand, 20, 18, 17),
+  ].filter(Boolean).length
+
+  const thumbTip = hand[4]
+  const indexTip = hand[8]
+  const middleTip = hand[12]
+  const ringTip = hand[16]
+  const pinkyTip = hand[20]
+  const fingertips = [thumbTip, indexTip, middleTip, ringTip, pinkyTip].filter(
+    Boolean,
+  ) as LandmarkPoint[]
+  const avgTipToWrist = fingertips.length
+    ? fingertips.reduce((sum, point) => sum + distance3(point, wrist), 0) / fingertips.length
+    : 0
+  const palmWidth = distance3(indexMcp, pinkyMcp)
+  const depthSpread = Math.max(...hand.map((p) => p.z)) - Math.min(...hand.map((p) => p.z))
+  const knuckleWidth = distance3(hand[5], hand[17])
+  const knuckleHeightSpread =
+    Math.max(hand[5].y, hand[9].y, hand[13].y, hand[17].y)
+    - Math.min(hand[5].y, hand[9].y, hand[13].y, hand[17].y)
+
+  // Palm-plane normal z magnitude helps estimate front-facing palm.
+  const ax = indexMcp.x - wrist.x
+  const ay = indexMcp.y - wrist.y
+  const bx = pinkyMcp.x - wrist.x
+  const by = pinkyMcp.y - wrist.y
+  const nz = ax * by - ay * bx
+  const frontFacingPalm = Math.abs(nz) > 0.012 && depthSpread < 0.28
+
+  const openPalmForward = openFingersCount >= 4 && frontFacingPalm && avgTipToWrist > palmWidth * 1.4
+  const closedFist =
+    (curledFingersCount >= 3 && avgTipToWrist < palmWidth * 1.65)
+    || (openFingersCount <= 1 && avgTipToWrist < palmWidth * 1.35)
+  const compactKnuckles = knuckleWidth > 0 && knuckleHeightSpread / knuckleWidth < 0.42
+  const fistForward = closedFist && (frontFacingPalm || (compactKnuckles && depthSpread < 0.2))
+  const fistSide = closedFist && !fistForward && depthSpread >= 0.12
+
+  return {
+    isOpenPalmForward: openPalmForward,
+    isFistForward: fistForward,
+    isFistSide: fistSide,
+  }
+}
+
 export function useHandTracking(setStatus: (value: string) => void) {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
@@ -23,6 +127,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [handHeight, setHandHeight] = useState(0)
   const [leftHandHeight, setLeftHandHeight] = useState(0)
   const [singleHandPinchMix, setSingleHandPinchMix] = useState(0)
+  const [isOpenPalmForward, setIsOpenPalmForward] = useState(false)
+  const [isFistForward, setIsFistForward] = useState(false)
+  const [isFistSide, setIsFistSide] = useState(false)
 
   const detectHands = (video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
@@ -57,11 +164,21 @@ export function useHandTracking(setStatus: (value: string) => void) {
 
     const rightWrist = rightHandIndex >= 0 ? result.landmarks[rightHandIndex]?.[0] : undefined
     const leftWrist = leftHandIndex >= 0 ? result.landmarks[leftHandIndex]?.[0] : undefined
+    const primaryHand = result.landmarks[0] as LandmarkPoint[] | undefined
+    const shape = primaryHand
+      ? analyzeHandShape(primaryHand)
+      : { isOpenPalmForward: false, isFistForward: false, isFistSide: false }
+    setIsOpenPalmForward(shape.isOpenPalmForward)
+    setIsFistForward(shape.isFistForward)
+    setIsFistSide(shape.isFistSide)
+
+    const rightHandHeight = rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0
+    const nextLeftHandHeight = leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0
+    setHandHeight(rightHandHeight)
+    setLeftHandHeight(nextLeftHandHeight)
 
     if (result.landmarks.length === 1) {
       const singleHand = result.landmarks[0]
-      const singleWrist = result.landmarks[0]?.[0]
-      const singleHeight = singleWrist ? Math.max(0, Math.min(1, 1 - singleWrist.y)) : 0
       const thumbTip = singleHand?.[4]
       const indexTip = singleHand?.[8]
       const indexMcp = singleHand?.[5]
@@ -102,12 +219,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
       const clampedPinch = Math.max(0, Math.min(1, mappedPinch))
       const curvedPinch = Math.pow(clampedPinch, 0.8)
       const pinchMix = curvedPinch >= 0.85 ? 1 : curvedPinch <= 0.06 ? 0 : curvedPinch
-      setHandHeight(singleHeight)
-      setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
       setSingleHandPinchMix(pinchMix)
     } else {
-      setHandHeight(rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0)
-      setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
       setSingleHandPinchMix(0)
     }
 
@@ -146,6 +259,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setHandHeight(0)
     setLeftHandHeight(0)
     setSingleHandPinchMix(0)
+    setIsOpenPalmForward(false)
+    setIsFistForward(false)
+    setIsFistSide(false)
     singleHandPinchMinRef.current = 0.25
     singleHandPinchMaxRef.current = 0.85
   }
@@ -195,5 +311,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
     handHeight,
     leftHandHeight,
     singleHandPinchMix,
+    isOpenPalmForward,
+    isFistForward,
+    isFistSide,
   }
 }
