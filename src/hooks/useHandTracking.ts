@@ -17,6 +17,8 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
 export function useHandTracking(setStatus: (value: string) => void) {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
+  const singleHandPinchMinRef = useRef(0.25)
+  const singleHandPinchMaxRef = useRef(0.85)
   const [handsCount, setHandsCount] = useState(0)
   const [handHeight, setHandHeight] = useState(0)
   const [leftHandHeight, setLeftHandHeight] = useState(0)
@@ -74,8 +76,32 @@ export function useHandTracking(setStatus: (value: string) => void) {
           indexMcp.z - pinkyMcp.z,
         )
         : 0
-      const normalizedPinch = palmWidth > 0 ? pinchDistance / (palmWidth * 1.15) : 0
-      const pinchMix = Math.max(0, Math.min(1, Math.pow(normalizedPinch, 0.85)))
+      const normalizedPinch = palmWidth > 0 ? pinchDistance / palmWidth : 0
+
+      // Adaptive one-hand calibration with slow decay to avoid sticky outlier max/min.
+      if (normalizedPinch > 0) {
+        const followRate = 0.01
+        if (normalizedPinch < singleHandPinchMinRef.current) {
+          singleHandPinchMinRef.current = normalizedPinch
+        } else {
+          singleHandPinchMinRef.current +=
+            (normalizedPinch - singleHandPinchMinRef.current) * followRate
+        }
+
+        if (normalizedPinch > singleHandPinchMaxRef.current) {
+          singleHandPinchMaxRef.current = normalizedPinch
+        } else {
+          singleHandPinchMaxRef.current +=
+            (normalizedPinch - singleHandPinchMaxRef.current) * followRate
+        }
+      }
+      const dynamicMin = singleHandPinchMinRef.current + 0.02
+      const dynamicMax = singleHandPinchMaxRef.current - 0.02
+      const dynamicRange = Math.max(0.1, dynamicMax - dynamicMin)
+      const mappedPinch = (normalizedPinch - dynamicMin) / dynamicRange
+      const clampedPinch = Math.max(0, Math.min(1, mappedPinch))
+      const curvedPinch = Math.pow(clampedPinch, 0.8)
+      const pinchMix = curvedPinch >= 0.85 ? 1 : curvedPinch <= 0.06 ? 0 : curvedPinch
       setHandHeight(singleHeight)
       setLeftHandHeight(leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0)
       setSingleHandPinchMix(pinchMix)
@@ -120,6 +146,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setHandHeight(0)
     setLeftHandHeight(0)
     setSingleHandPinchMix(0)
+    singleHandPinchMinRef.current = 0.25
+    singleHandPinchMaxRef.current = 0.85
   }
 
   useEffect(() => {
