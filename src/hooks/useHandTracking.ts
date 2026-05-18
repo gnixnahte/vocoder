@@ -19,6 +19,21 @@ type LandmarkPoint = { x: number; y: number; z: number }
 const distance3 = (a: LandmarkPoint, b: LandmarkPoint) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
+const angleBetween = (a: LandmarkPoint, b: LandmarkPoint, c: LandmarkPoint) => {
+  const abx = a.x - b.x
+  const aby = a.y - b.y
+  const abz = a.z - b.z
+  const cbx = c.x - b.x
+  const cby = c.y - b.y
+  const cbz = c.z - b.z
+  const dot = abx * cbx + aby * cby + abz * cbz
+  const magAb = Math.hypot(abx, aby, abz)
+  const magCb = Math.hypot(cbx, cby, cbz)
+  if (magAb === 0 || magCb === 0) return Math.PI
+  const cosine = Math.max(-1, Math.min(1, dot / (magAb * magCb)))
+  return Math.acos(cosine)
+}
+
 const isFingerExtended = (
   hand: LandmarkPoint[],
   tipIndex: number,
@@ -45,10 +60,17 @@ const isFingerCurled = (
   const tip = hand[tipIndex]
   const pip = hand[pipIndex]
   const mcp = hand[mcpIndex]
+  const dip = hand[pipIndex + 1]
   if (!tip || !pip || !mcp) return false
   const tipToMcp = distance3(tip, mcp)
   const pipToMcp = distance3(pip, mcp)
-  return tipToMcp < pipToMcp * 0.95
+  const isDistanceCurled = tipToMcp < pipToMcp * 1.05
+  if (!dip) return isDistanceCurled
+
+  const pipBend = angleBetween(mcp, pip, dip)
+  const dipBend = angleBetween(pip, dip, tip)
+  const isAngleCurled = pipBend < 2.35 || dipBend < 2.45
+  return isDistanceCurled || isAngleCurled
 }
 
 const analyzeHandShape = (hand: LandmarkPoint[]) => {
@@ -109,7 +131,8 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     || (openFingersCount <= 1 && avgTipToWrist < palmWidth * 1.35)
   const compactKnuckles = knuckleWidth > 0 && knuckleHeightSpread / knuckleWidth < 0.42
   const fistForward = closedFist && (frontFacingPalm || (compactKnuckles && depthSpread < 0.2))
-  const fistSide = closedFist && !fistForward && depthSpread >= 0.12
+  const sideFacingPalm = Math.abs(nz) <= 0.012
+  const fistSide = closedFist && sideFacingPalm && depthSpread >= 0.1
 
   return {
     isOpenPalmForward: openPalmForward,
