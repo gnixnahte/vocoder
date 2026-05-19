@@ -15,6 +15,7 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
 ]
 
 type LandmarkPoint = { x: number; y: number; z: number }
+type GestureLabel = 'none' | 'open_palm_forward' | 'fist_forward' | 'fist_side'
 
 const distance3 = (a: LandmarkPoint, b: LandmarkPoint) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
@@ -83,6 +84,8 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
       isOpenPalmForward: false,
       isFistForward: false,
       isFistSide: false,
+      forwardScore: 0,
+      sideScore: 0,
     }
   }
 
@@ -116,6 +119,19 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
   const knuckleHeightSpread =
     Math.max(hand[5].y, hand[9].y, hand[13].y, hand[17].y)
     - Math.min(hand[5].y, hand[9].y, hand[13].y, hand[17].y)
+  const fingertipClusterSpread = Math.max(
+    distance3(hand[8], hand[12]),
+    distance3(hand[12], hand[16]),
+    distance3(hand[16], hand[20]),
+    distance3(hand[8], hand[20]),
+  )
+  const handMinX = Math.min(...hand.map((p) => p.x))
+  const handMaxX = Math.max(...hand.map((p) => p.x))
+  const handMinY = Math.min(...hand.map((p) => p.y))
+  const handMaxY = Math.max(...hand.map((p) => p.y))
+  const handWidth = handMaxX - handMinX
+  const handHeight = handMaxY - handMinY
+  const sideSilhouette = handHeight > 0 && handWidth / handHeight < 0.68
 
   // Palm-plane normal z magnitude helps estimate front-facing palm.
   const ax = indexMcp.x - wrist.x
@@ -129,21 +145,44 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
   const closedFist =
     (curledFingersCount >= 3 && avgTipToWrist < palmWidth * 1.65)
     || (openFingersCount <= 1 && avgTipToWrist < palmWidth * 1.35)
+    || (openFingersCount <= 2 && avgTipToWrist < palmWidth * 1.85 && handWidth / handHeight < 0.86)
   const compactKnuckles = knuckleWidth > 0 && knuckleHeightSpread / knuckleWidth < 0.42
   const fistForward = closedFist && (frontFacingPalm || (compactKnuckles && depthSpread < 0.2))
-  const sideFacingPalm = Math.abs(nz) <= 0.012
-  const fistSide = closedFist && sideFacingPalm && depthSpread >= 0.1
+  const sideFacingPalm = Math.abs(nz) <= 0.02
+  const sideFistFallback =
+    compactKnuckles
+    && fingertipClusterSpread < palmWidth * 0.95
+    && handWidth / handHeight < 0.95
+  const rawFistSide =
+    closedFist
+    && (sideFacingPalm || sideFistFallback)
+    && (depthSpread >= 0.06 || sideSilhouette || sideFistFallback)
+  const fistSide = rawFistSide && !fistForward
+
+  // Confidence-like values for stable conflict resolution across adjacent poses.
+  const forwardScore =
+    (frontFacingPalm ? 1.2 : 0)
+    + (compactKnuckles ? 0.6 : 0)
+    + (depthSpread < 0.2 ? 0.4 : 0)
+  const sideScore =
+    (sideFacingPalm ? 1.0 : 0)
+    + (sideSilhouette ? 0.8 : 0)
+    + (sideFistFallback ? 1.0 : 0)
+    + (depthSpread >= 0.06 ? 0.3 : 0)
 
   return {
     isOpenPalmForward: openPalmForward,
     isFistForward: fistForward,
     isFistSide: fistSide,
+    forwardScore,
+    sideScore,
   }
 }
 
 export function useHandTracking(setStatus: (value: string) => void) {
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
+  const lastGestureStatusRef = useRef('')
   const singleHandPinchMinRef = useRef(0.25)
   const singleHandPinchMaxRef = useRef(0.85)
   const [handsCount, setHandsCount] = useState(0)
@@ -153,6 +192,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [isOpenPalmForward, setIsOpenPalmForward] = useState(false)
   const [isFistForward, setIsFistForward] = useState(false)
   const [isFistSide, setIsFistSide] = useState(false)
+  const stableGestureRef = useRef<GestureLabel>('none')
+  const gestureCandidateRef = useRef<GestureLabel>('none')
+  const candidateFramesRef = useRef(0)
 
   const detectHands = (video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
@@ -188,12 +230,64 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const rightWrist = rightHandIndex >= 0 ? result.landmarks[rightHandIndex]?.[0] : undefined
     const leftWrist = leftHandIndex >= 0 ? result.landmarks[leftHandIndex]?.[0] : undefined
     const primaryHand = result.landmarks[0] as LandmarkPoint[] | undefined
-    const shape = primaryHand
+    const shape: ReturnType<typeof analyzeHandShape> = primaryHand
       ? analyzeHandShape(primaryHand)
-      : { isOpenPalmForward: false, isFistForward: false, isFistSide: false }
-    setIsOpenPalmForward(shape.isOpenPalmForward)
-    setIsFistForward(shape.isFistForward)
-    setIsFistSide(shape.isFistSide)
+      : {
+        isOpenPalmForward: false,
+        isFistForward: false,
+        isFistSide: false,
+        forwardScore: 0,
+        sideScore: 0,
+      }
+
+    // Resolve fist-forward vs fist-side with margin to prevent mixed classifications.
+    let instantaneousGesture: GestureLabel = 'none'
+    if (shape.isOpenPalmForward) {
+      instantaneousGesture = 'open_palm_forward'
+    } else if (shape.isFistForward || shape.isFistSide) {
+      const scoreDiff = shape.sideScore - shape.forwardScore
+      if (scoreDiff > 0.2 && shape.isFistSide) {
+        instantaneousGesture = 'fist_side'
+      } else if (scoreDiff < -0.2 && shape.isFistForward) {
+        instantaneousGesture = 'fist_forward'
+      } else if (shape.isFistSide && !shape.isFistForward) {
+        instantaneousGesture = 'fist_side'
+      } else if (shape.isFistForward) {
+        instantaneousGesture = 'fist_forward'
+      }
+    }
+
+    // Hysteresis: require fewer frames to keep state, more to switch state.
+    if (gestureCandidateRef.current === instantaneousGesture) {
+      candidateFramesRef.current += 1
+    } else {
+      gestureCandidateRef.current = instantaneousGesture
+      candidateFramesRef.current = 1
+    }
+
+    const currentStable = stableGestureRef.current
+    const switching = gestureCandidateRef.current !== currentStable
+    const framesNeeded = switching ? 3 : 2
+    if (candidateFramesRef.current >= framesNeeded) {
+      stableGestureRef.current = gestureCandidateRef.current
+    }
+
+    const stableGesture = stableGestureRef.current
+    setIsOpenPalmForward(stableGesture === 'open_palm_forward')
+    setIsFistForward(stableGesture === 'fist_forward')
+    setIsFistSide(stableGesture === 'fist_side')
+
+    const gestureStatus = stableGesture === 'fist_side'
+      ? 'Gesture: Fist Side'
+      : stableGesture === 'fist_forward'
+        ? 'Gesture: Fist Forward'
+        : stableGesture === 'open_palm_forward'
+          ? 'Gesture: Open Palm Forward'
+          : 'Gesture: None'
+    if (gestureStatus !== lastGestureStatusRef.current) {
+      lastGestureStatusRef.current = gestureStatus
+      setStatus(gestureStatus)
+    }
 
     const rightHandHeight = rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0
     const nextLeftHandHeight = leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0
@@ -285,6 +379,10 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setIsOpenPalmForward(false)
     setIsFistForward(false)
     setIsFistSide(false)
+    stableGestureRef.current = 'none'
+    gestureCandidateRef.current = 'none'
+    candidateFramesRef.current = 0
+    lastGestureStatusRef.current = ''
     singleHandPinchMinRef.current = 0.25
     singleHandPinchMaxRef.current = 0.85
   }
