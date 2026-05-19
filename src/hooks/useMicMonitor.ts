@@ -12,6 +12,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const wetGainRef = useRef<GainNode | null>(null)
   const convolverRef = useRef<ConvolverNode | null>(null)
   const micGainRef = useRef<GainNode | null>(null)
+  const tremoloGainRef = useRef<GainNode | null>(null)
+  const tremoloDepthGainRef = useRef<GainNode | null>(null)
+  const tremoloOscillatorRef = useRef<OscillatorNode | null>(null)
   const monitorDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const smoothedMonitorLevelRef = useRef(0)
 
@@ -70,6 +73,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainRef.current?.disconnect()
       convolverRef.current?.disconnect()
       micGainRef.current?.disconnect()
+      tremoloGainRef.current?.disconnect()
+      tremoloDepthGainRef.current?.disconnect()
+      tremoloOscillatorRef.current?.disconnect()
+      tremoloOscillatorRef.current?.stop()
       monitorDestinationRef.current?.disconnect()
       micStreamRef.current?.getTracks().forEach((track) => track.stop())
       micSourceRef.current = null
@@ -77,6 +84,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainRef.current = null
       convolverRef.current = null
       micGainRef.current = null
+      tremoloGainRef.current = null
+      tremoloDepthGainRef.current = null
+      tremoloOscillatorRef.current = null
       monitorDestinationRef.current = null
       micStreamRef.current = null
       smoothedMonitorLevelRef.current = 0
@@ -125,6 +135,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       const wetBoostNode = audioContext.createGain()
       const convolverNode = audioContext.createConvolver()
       const gainNode = audioContext.createGain()
+      const tremoloGainNode = audioContext.createGain()
+      const tremoloDepthGainNode = audioContext.createGain()
+      const tremoloOscillatorNode = audioContext.createOscillator()
       const monitorDestination = audioContext.createMediaStreamDestination()
 
       convolverNode.buffer = createImpulseResponse(audioContext)
@@ -132,6 +145,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainNode.gain.value = 0.3
       wetBoostNode.gain.value = 1.8
       gainNode.gain.value = 0
+      tremoloGainNode.gain.value = 1
+      tremoloDepthGainNode.gain.value = 0
+      tremoloOscillatorNode.frequency.value = 5.5
 
       source.connect(dryGainNode)
       dryGainNode.connect(gainNode)
@@ -141,8 +157,12 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainNode.connect(wetBoostNode)
       wetBoostNode.connect(gainNode)
 
-      gainNode.connect(audioContext.destination)
-      gainNode.connect(monitorDestination)
+      gainNode.connect(tremoloGainNode)
+      tremoloOscillatorNode.connect(tremoloDepthGainNode)
+      tremoloDepthGainNode.connect(tremoloGainNode.gain)
+      tremoloGainNode.connect(audioContext.destination)
+      tremoloGainNode.connect(monitorDestination)
+      tremoloOscillatorNode.start()
 
       micStreamRef.current = stream
       micSourceRef.current = source
@@ -150,6 +170,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       wetGainRef.current = wetGainNode
       convolverRef.current = convolverNode
       micGainRef.current = gainNode
+      tremoloGainRef.current = tremoloGainNode
+      tremoloDepthGainRef.current = tremoloDepthGainNode
+      tremoloOscillatorRef.current = tremoloOscillatorNode
       monitorDestinationRef.current = monitorDestination
       smoothedMonitorLevelRef.current = 0
       setMicOn(true)
@@ -191,6 +214,18 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     const now = audioContext.currentTime
     dryGainNode.gain.setTargetAtTime(1 - clampedMix, now, 0.03)
     wetGainNode.gain.setTargetAtTime(clampedMix, now, 0.03)
+  }, [])
+
+  const setTremoloDepth = useCallback((depth: number) => {
+    const audioContext = audioContextRef.current
+    const tremoloGainNode = tremoloGainRef.current
+    const tremoloDepthGainNode = tremoloDepthGainRef.current
+    if (!audioContext || !tremoloGainNode || !tremoloDepthGainNode) return
+
+    const clampedDepth = Math.max(0, Math.min(1, depth))
+    const now = audioContext.currentTime
+    tremoloGainNode.gain.setTargetAtTime(1 - clampedDepth * 0.45, now, 0.04)
+    tremoloDepthGainNode.gain.setTargetAtTime(clampedDepth * 0.45, now, 0.04)
   }, [])
 
   useEffect(() => {
@@ -238,6 +273,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     toggleMic,
     setMonitorLevel,
     setReverbMix,
+    setTremoloDepth,
     getMicStream: () => micStreamRef.current,
     getMonitorStream: () => monitorDestinationRef.current?.stream ?? null,
   }

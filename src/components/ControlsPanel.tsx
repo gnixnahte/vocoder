@@ -21,6 +21,10 @@ type ControlsPanelProps = {
   isOpenPalmForward: boolean
   isFistForward: boolean
   isFistSide: boolean
+  leftHandFistForward: boolean
+  singleHandFistForward: boolean
+  leftHandRotation: number
+  singleHandRotation: number
 }
 
 export function ControlsPanel({
@@ -46,6 +50,10 @@ export function ControlsPanel({
   isOpenPalmForward,
   isFistForward,
   isFistSide,
+  leftHandFistForward,
+  singleHandFistForward,
+  leftHandRotation,
+  singleHandRotation,
 }: ControlsPanelProps) {
   return (
     <section style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
@@ -111,6 +119,10 @@ export function ControlsPanel({
       <small>Open palm forward: {isOpenPalmForward ? 'yes' : 'no'}</small>
       <small>Fist forward: {isFistForward ? 'yes' : 'no'}</small>
       <small>Fist side: {isFistSide ? 'yes' : 'no'}</small>
+      <small>Left fist forward: {leftHandFistForward ? 'yes' : 'no'}</small>
+      <small>Single fist forward: {singleHandFistForward ? 'yes' : 'no'}</small>
+      <small>Left hand rotation: {leftHandRotation.toFixed(2)}</small>
+      <small>Single hand rotation: {singleHandRotation.toFixed(2)}</small>
     </section>
   )
 }

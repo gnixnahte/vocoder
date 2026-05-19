@@ -32,6 +32,10 @@ function App() {
     isOpenPalmForward,
     isFistForward,
     isFistSide,
+    leftHandFistForward,
+    singleHandFistForward,
+    leftHandRotation,
+    singleHandRotation,
   } = useHandTracking(setStatus)
 
   const { videoRef, canvasRef, cameraOn, startCamera, stopCamera } = useCameraPipeline({
@@ -50,6 +54,7 @@ function App() {
     toggleMic,
     setMonitorLevel,
     setReverbMix,
+    setTremoloDepth,
     getMicStream,
     getMonitorStream,
   } = useMicMonitor({ setStatus })
@@ -70,6 +75,20 @@ function App() {
     setReverbMix(activeReverbMix)
     setReverbMixState(activeReverbMix)
   }, [handsCount, leftHandHeight, setReverbMix, singleHandPinchMix])
+
+  useEffect(() => {
+    const tremoloDepth = handsCount === 1
+      ? (singleHandFistForward ? singleHandRotation : 0)
+      : (leftHandFistForward ? leftHandRotation : 0)
+    setTremoloDepth(tremoloDepth)
+  }, [
+    handsCount,
+    leftHandFistForward,
+    leftHandRotation,
+    setTremoloDepth,
+    singleHandFistForward,
+    singleHandRotation,
+  ])
 
   const beginRecording = () => {
     if (isRecording) {
@@ -231,6 +250,10 @@ function App() {
         isOpenPalmForward={isOpenPalmForward}
         isFistForward={isFistForward}
         isFistSide={isFistSide}
+        leftHandFistForward={leftHandFistForward}
+        singleHandFistForward={singleHandFistForward}
+        leftHandRotation={leftHandRotation}
+        singleHandRotation={singleHandRotation}
       />
 
       <section style={{ maxWidth: '700px', margin: '0 auto' }}>
