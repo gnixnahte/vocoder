@@ -4,6 +4,9 @@ type UseMicMonitorArgs = {
   setStatus: (value: string) => void
 }
 
+const DEFAULT_TREMOLO_RATE_HZ = 8.5
+const TREMOLO_INTENSITY = 0.45
+
 export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const micStreamRef = useRef<MediaStream | null>(null)
@@ -147,7 +150,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       gainNode.gain.value = 0
       tremoloGainNode.gain.value = 1
       tremoloDepthGainNode.gain.value = 0
-      tremoloOscillatorNode.frequency.value = 5.5
+      tremoloOscillatorNode.frequency.value = DEFAULT_TREMOLO_RATE_HZ
 
       source.connect(dryGainNode)
       dryGainNode.connect(gainNode)
@@ -224,8 +227,8 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
 
     const clampedDepth = Math.max(0, Math.min(1, depth))
     const now = audioContext.currentTime
-    tremoloGainNode.gain.setTargetAtTime(1 - clampedDepth * 0.45, now, 0.04)
-    tremoloDepthGainNode.gain.setTargetAtTime(clampedDepth * 0.45, now, 0.04)
+    tremoloGainNode.gain.setTargetAtTime(1 - clampedDepth * TREMOLO_INTENSITY, now, 0.04)
+    tremoloDepthGainNode.gain.setTargetAtTime(clampedDepth * TREMOLO_INTENSITY, now, 0.04)
   }, [])
 
   useEffect(() => {

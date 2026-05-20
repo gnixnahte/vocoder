@@ -158,15 +158,21 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     || (openFingersCount <= 2 && avgTipToWrist < palmWidth * 1.85 && handWidth / handHeight < 0.86)
   const compactKnuckles = knuckleWidth > 0 && knuckleHeightSpread / knuckleWidth < 0.42
   const fistForward = closedFist && (frontFacingPalm || (compactKnuckles && depthSpread < 0.2))
-  const sideFacingPalm = Math.abs(nz) <= 0.02
+  const depthToWidth = palmWidth > 0 ? depthSpread / palmWidth : 0
+  const sideFacingPalm = Math.abs(nz) <= 0.03
+  const sideProfileStrong = sideSilhouette || depthToWidth > 0.32
+  const compactFingertips =
+    fingertipClusterSpread < palmWidth * 1.2
+    && avgTipToWrist < palmWidth * 1.75
   const sideFistFallback =
     compactKnuckles
     && fingertipClusterSpread < palmWidth * 0.95
     && handWidth / handHeight < 0.95
   const rawFistSide =
     closedFist
-    && (sideFacingPalm || sideFistFallback)
-    && (depthSpread >= 0.06 || sideSilhouette || sideFistFallback)
+    && compactFingertips
+    && (sideFacingPalm || sideFistFallback || sideProfileStrong)
+    && (depthSpread >= 0.045 || sideSilhouette || sideFistFallback || depthToWidth > 0.3)
   const fistSide = rawFistSide && !fistForward
 
   // Confidence-like values for stable conflict resolution across adjacent poses.
@@ -177,8 +183,9 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
   const sideScore =
     (sideFacingPalm ? 1.0 : 0)
     + (sideSilhouette ? 0.8 : 0)
+    + (sideProfileStrong ? 0.5 : 0)
     + (sideFistFallback ? 1.0 : 0)
-    + (depthSpread >= 0.06 ? 0.3 : 0)
+    + (depthSpread >= 0.045 ? 0.3 : 0)
 
   return {
     isOpenPalmForward: openPalmForward,

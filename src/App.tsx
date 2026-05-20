@@ -6,6 +6,7 @@ import { useHandTracking } from './hooks/useHandTracking'
 import { useMicMonitor } from './hooks/useMicMonitor'
 
 const DEFAULT_API_URL = 'http://127.0.0.1:8000/process'
+const DEFAULT_TREMOLO_DEPTH = 0.24
 
 function App() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
@@ -77,16 +78,18 @@ function App() {
   }, [handsCount, leftHandHeight, setReverbMix, singleHandPinchMix])
 
   useEffect(() => {
-    const tremoloDepth = handsCount === 1
-      ? (singleHandFistForward ? singleHandRotation : 0)
+    // In one-hand mode, use rotation directly so tremolo remains responsive
+    // without requiring a strict fist gate.
+    const gestureDepth = handsCount === 1
+      ? singleHandRotation
       : (leftHandFistForward ? leftHandRotation : 0)
+    const tremoloDepth = DEFAULT_TREMOLO_DEPTH + gestureDepth * (1 - DEFAULT_TREMOLO_DEPTH)
     setTremoloDepth(tremoloDepth)
   }, [
     handsCount,
     leftHandFistForward,
     leftHandRotation,
     setTremoloDepth,
-    singleHandFistForward,
     singleHandRotation,
   ])
 
