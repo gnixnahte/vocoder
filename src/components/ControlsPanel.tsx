@@ -55,6 +55,23 @@ export function ControlsPanel({
   leftHandRotation,
   singleHandRotation,
 }: ControlsPanelProps) {
+  const metrics = [
+    `Status: ${status}`,
+    `Hands detected: ${handsCount}`,
+    `Right hand height: ${handHeight.toFixed(2)}`,
+    `Left hand height: ${leftHandHeight.toFixed(2)}`,
+    `Single hand pinch mix: ${singleHandPinchMix.toFixed(2)}`,
+    `Monitor level: ${monitorLevel.toFixed(2)}`,
+    `Reverb mix: ${reverbMix.toFixed(2)}`,
+    `Open palm forward: ${isOpenPalmForward ? 'yes' : 'no'}`,
+    `Fist forward: ${isFistForward ? 'yes' : 'no'}`,
+    `Fist side: ${isFistSide ? 'yes' : 'no'}`,
+    `Left fist forward: ${leftHandFistForward ? 'yes' : 'no'}`,
+    `Single fist forward: ${singleHandFistForward ? 'yes' : 'no'}`,
+    `Left hand rotation: ${leftHandRotation.toFixed(2)}`,
+    `Single hand rotation: ${singleHandRotation.toFixed(2)}`,
+  ]
+
   return (
     <section style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
       <label>
@@ -109,20 +126,17 @@ export function ControlsPanel({
         </button>
       </div>
 
-      <small>Status: {status}</small>
-      <small>Hands detected: {handsCount}</small>
-      <small>Right hand height: {handHeight.toFixed(2)}</small>
-      <small>Left hand height: {leftHandHeight.toFixed(2)}</small>
-      <small>Single hand pinch mix: {singleHandPinchMix.toFixed(2)}</small>
-      <small>Monitor level: {monitorLevel.toFixed(2)}</small>
-      <small>Reverb mix: {reverbMix.toFixed(2)}</small>
-      <small>Open palm forward: {isOpenPalmForward ? 'yes' : 'no'}</small>
-      <small>Fist forward: {isFistForward ? 'yes' : 'no'}</small>
-      <small>Fist side: {isFistSide ? 'yes' : 'no'}</small>
-      <small>Left fist forward: {leftHandFistForward ? 'yes' : 'no'}</small>
-      <small>Single fist forward: {singleHandFistForward ? 'yes' : 'no'}</small>
-      <small>Left hand rotation: {leftHandRotation.toFixed(2)}</small>
-      <small>Single hand rotation: {singleHandRotation.toFixed(2)}</small>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '6px 16px',
+        }}
+      >
+        {metrics.map((metric) => (
+          <small key={metric}>{metric}</small>
+        ))}
+      </div>
     </section>
   )
 }
