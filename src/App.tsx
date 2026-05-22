@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import lamejs from 'lamejs'
 import './App.css'
 import { ControlsPanel } from './components/ControlsPanel'
 import { useCameraPipeline } from './hooks/useCameraPipeline'
@@ -16,8 +17,11 @@ function App() {
   const [reverbMix, setReverbMixState] = useState(0)
   const [isRecording, setIsRecording] = useState(false)
   const [recordedSrc, setRecordedSrc] = useState('')
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
   const [recordingError, setRecordingError] = useState('')
   const [recordingLabel, setRecordingLabel] = useState('')
+  const [isExtractingMp3, setIsExtractingMp3] = useState(false)
+  const [mp3Error, setMp3Error] = useState('')
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
   const countdownTimerRef = useRef<number | null>(null)
@@ -154,6 +158,7 @@ function App() {
     recorder.onstop = () => {
       const blob = new Blob(chunks, { type: 'video/webm' })
       const nextUrl = URL.createObjectURL(blob)
+      setRecordedBlob(blob)
       setRecordedSrc((prev) => {
         if (prev) URL.revokeObjectURL(prev)
         return nextUrl
@@ -162,6 +167,7 @@ function App() {
       setMediaRecorder(null)
       setRecordingLabel(`Recorded ${Math.round(blob.size / 1024)} KB`)
       setRecordingError('')
+      setMp3Error('')
       combinedStream.getTracks().forEach((track) => track.stop())
     }
     recorder.onerror = () => {
@@ -220,6 +226,51 @@ function App() {
       clearCountdownTimer()
     }
   }, [recordedSrc])
+
+  const extractMp3 = async () => {
+    if (!recordedBlob) return
+    setIsExtractingMp3(true)
+    setMp3Error('')
+    let audioContext: AudioContext | null = null
+    try {
+      audioContext = new AudioContext()
+      const arrayBuffer = await recordedBlob.arrayBuffer()
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      const channelData = audioBuffer.getChannelData(0)
+      const sampleRate = audioBuffer.sampleRate
+      const samples = new Int16Array(channelData.length)
+      for (let i = 0; i < channelData.length; i += 1) {
+        const clamped = Math.max(-1, Math.min(1, channelData[i]))
+        samples[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
+      }
+
+      const encoder = new lamejs.Mp3Encoder(1, sampleRate, 128)
+      const mp3Chunks: BlobPart[] = []
+      const blockSize = 1152
+      for (let i = 0; i < samples.length; i += blockSize) {
+        const chunk = samples.subarray(i, i + blockSize)
+        const mp3buf = encoder.encodeBuffer(chunk)
+        if (mp3buf.length > 0) mp3Chunks.push(Uint8Array.from(mp3buf))
+      }
+      const end = encoder.flush()
+      if (end.length > 0) mp3Chunks.push(Uint8Array.from(end))
+
+      const mp3Blob = new Blob(mp3Chunks, { type: 'audio/mpeg' })
+      const downloadUrl = URL.createObjectURL(mp3Blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = `recording-${Date.now()}.mp3`
+      link.click()
+      URL.revokeObjectURL(downloadUrl)
+    } catch {
+      setMp3Error('Could not extract MP3 from this recording.')
+    } finally {
+      if (audioContext) {
+        await audioContext.close()
+      }
+      setIsExtractingMp3(false)
+    }
+  }
 
   return (
     <main style={{ padding: '24px', textAlign: 'left' }}>
@@ -316,6 +367,12 @@ function App() {
           <div style={{ marginTop: '14px' }}>
             <h3 style={{ marginTop: 0 }}>Last Recording</h3>
             <video src={recordedSrc} controls style={{ width: '100%', border: '1px solid var(--border)' }} />
+            <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button type="button" onClick={() => { void extractMp3() }} disabled={isExtractingMp3}>
+                {isExtractingMp3 ? 'Extracting MP3...' : 'Extract audio as MP3'}
+              </button>
+              {mp3Error ? <small>{mp3Error}</small> : null}
+            </div>
           </div>
         ) : null}
       </section>
