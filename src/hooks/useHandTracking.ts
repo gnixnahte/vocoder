@@ -164,15 +164,22 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
   const compactFingertips =
     fingertipClusterSpread < palmWidth * 1.2
     && avgTipToWrist < palmWidth * 1.75
+  // Sideways closed fists can occlude joints and under-count curled fingers.
+  const closedSideEvidence =
+    openFingersCount <= 2
+    && compactFingertips
+    && (sideFacingPalm || sideProfileStrong || handWidth / handHeight < 0.92)
+    && avgTipToWrist < palmWidth * 1.95
+  const closedHand = closedFist || closedSideEvidence
   const sideFistFallback =
     compactKnuckles
-    && fingertipClusterSpread < palmWidth * 0.95
-    && handWidth / handHeight < 0.95
+    && fingertipClusterSpread < palmWidth * 1.05
+    && handWidth / handHeight < 1.02
   const rawFistSide =
-    closedFist
+    closedHand
     && compactFingertips
     && (sideFacingPalm || sideFistFallback || sideProfileStrong)
-    && (depthSpread >= 0.045 || sideSilhouette || sideFistFallback || depthToWidth > 0.3)
+    && (depthSpread >= 0.038 || sideSilhouette || sideFistFallback || depthToWidth > 0.26)
   const fistSide = rawFistSide && !fistForward
 
   // Confidence-like values for stable conflict resolution across adjacent poses.
