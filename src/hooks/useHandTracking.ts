@@ -16,6 +16,7 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
 
 type LandmarkPoint = { x: number; y: number; z: number }
 type GestureLabel = 'none' | 'open_palm_forward' | 'fist_forward' | 'fist_side'
+type SideDirection = 'none' | 'left' | 'right'
 
 const distance3 = (a: LandmarkPoint, b: LandmarkPoint) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
@@ -94,6 +95,7 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
       isOpenPalmForward: false,
       isFistForward: false,
       isFistSide: false,
+      sideDirection: 'none' as SideDirection,
       forwardScore: 0,
       sideScore: 0,
     }
@@ -181,6 +183,13 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     && (sideFacingPalm || sideFistFallback || sideProfileStrong)
     && (depthSpread >= 0.038 || sideSilhouette || sideFistFallback || depthToWidth > 0.26)
   const fistSide = rawFistSide && !fistForward
+  const knuckleCenterX = (hand[5].x + hand[9].x + hand[13].x + hand[17].x) / 4
+  const tipCenterX = (hand[8].x + hand[12].x + hand[16].x + hand[20].x) / 4
+  const lateralOffset = tipCenterX - knuckleCenterX
+  const lateralThreshold = Math.max(0.015, handWidth * 0.08)
+  const sideDirection: SideDirection = fistSide && Math.abs(lateralOffset) > lateralThreshold
+    ? (lateralOffset > 0 ? 'right' : 'left')
+    : 'none'
 
   // Confidence-like values for stable conflict resolution across adjacent poses.
   const forwardScore =
@@ -198,6 +207,7 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     isOpenPalmForward: openPalmForward,
     isFistForward: fistForward,
     isFistSide: fistSide,
+    sideDirection,
     forwardScore,
     sideScore,
   }
@@ -216,6 +226,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [isOpenPalmForward, setIsOpenPalmForward] = useState(false)
   const [isFistForward, setIsFistForward] = useState(false)
   const [isFistSide, setIsFistSide] = useState(false)
+  const [isFistSideLeft, setIsFistSideLeft] = useState(false)
+  const [isFistSideRight, setIsFistSideRight] = useState(false)
   const [leftHandFistForward, setLeftHandFistForward] = useState(false)
   const [singleHandFistForward, setSingleHandFistForward] = useState(false)
   const [leftHandRotation, setLeftHandRotation] = useState(0)
@@ -265,6 +277,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
         isOpenPalmForward: false,
         isFistForward: false,
         isFistSide: false,
+        sideDirection: 'none' as SideDirection,
         forwardScore: 0,
         sideScore: 0,
       }
@@ -305,6 +318,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setIsOpenPalmForward(stableGesture === 'open_palm_forward')
     setIsFistForward(stableGesture === 'fist_forward')
     setIsFistSide(stableGesture === 'fist_side')
+    const stableSideDirection = stableGesture === 'fist_side' ? shape.sideDirection : 'none'
+    setIsFistSideLeft(stableSideDirection === 'left')
+    setIsFistSideRight(stableSideDirection === 'right')
 
     const gestureStatus = stableGesture === 'fist_side'
       ? 'Gesture: Fist Side'
@@ -416,6 +432,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setIsOpenPalmForward(false)
     setIsFistForward(false)
     setIsFistSide(false)
+    setIsFistSideLeft(false)
+    setIsFistSideRight(false)
     setLeftHandFistForward(false)
     setSingleHandFistForward(false)
     setLeftHandRotation(0)
@@ -476,6 +494,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
     isOpenPalmForward,
     isFistForward,
     isFistSide,
+    isFistSideLeft,
+    isFistSideRight,
     leftHandFistForward,
     singleHandFistForward,
     leftHandRotation,

@@ -21,6 +21,8 @@ type ControlsPanelProps = {
   isOpenPalmForward: boolean
   isFistForward: boolean
   isFistSide: boolean
+  isFistSideLeft: boolean
+  isFistSideRight: boolean
   leftHandFistForward: boolean
   singleHandFistForward: boolean
   leftHandRotation: number
@@ -50,6 +52,8 @@ export function ControlsPanel({
   isOpenPalmForward,
   isFistForward,
   isFistSide,
+  isFistSideLeft,
+  isFistSideRight,
   leftHandFistForward,
   singleHandFistForward,
   leftHandRotation,
@@ -66,6 +70,8 @@ export function ControlsPanel({
     `Open palm forward: ${isOpenPalmForward ? 'yes' : 'no'}`,
     `Fist forward: ${isFistForward ? 'yes' : 'no'}`,
     `Fist side: ${isFistSide ? 'yes' : 'no'}`,
+    `Fist side left: ${isFistSideLeft ? 'yes' : 'no'}`,
+    `Fist side right: ${isFistSideRight ? 'yes' : 'no'}`,
     `Left fist forward: ${leftHandFistForward ? 'yes' : 'no'}`,
     `Single fist forward: ${singleHandFistForward ? 'yes' : 'no'}`,
     `Left hand rotation: ${leftHandRotation.toFixed(2)}`,

@@ -37,6 +37,8 @@ function App() {
     isOpenPalmForward,
     isFistForward,
     isFistSide,
+    isFistSideLeft,
+    isFistSideRight,
     leftHandFistForward,
     singleHandFistForward,
     leftHandRotation,
@@ -304,6 +306,8 @@ function App() {
         isOpenPalmForward={isOpenPalmForward}
         isFistForward={isFistForward}
         isFistSide={isFistSide}
+        isFistSideLeft={isFistSideLeft}
+        isFistSideRight={isFistSideRight}
         leftHandFistForward={leftHandFistForward}
         singleHandFistForward={singleHandFistForward}
         leftHandRotation={leftHandRotation}
