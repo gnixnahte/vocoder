@@ -8,6 +8,7 @@ import { useMicMonitor } from './hooks/useMicMonitor'
 
 const DEFAULT_API_URL = 'http://127.0.0.1:8000/process'
 const DEFAULT_TREMOLO_DEPTH = 0.24
+type ViewMode = 'raw' | 'processed' | 'split'
 
 function App() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
@@ -24,6 +25,7 @@ function App() {
   const [mp3Error, setMp3Error] = useState('')
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('split')
   const countdownTimerRef = useRef<number | null>(null)
 
   const {
@@ -45,7 +47,7 @@ function App() {
     singleHandRotation,
   } = useHandTracking(setStatus)
 
-  const { videoRef, canvasRef, cameraOn, startCamera, stopCamera } = useCameraPipeline({
+  const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
     apiUrl,
     fps,
     detectHands,
@@ -316,36 +318,95 @@ function App() {
 
       <section style={{ maxWidth: '700px', margin: '0 auto' }}>
         <h2>Live Camera</h2>
-        <div style={{ position: 'relative', border: '1px solid var(--border)', aspectRatio: '4 / 3' }}>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            width={640}
-            height={480}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: 'block',
-              transform: 'scaleX(-1)',
-              background: '#000',
-            }}
-          />
-          <canvas
-            ref={overlayCanvasRef}
-            width={640}
-            height={480}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              transform: 'scaleX(-1)',
-              pointerEvents: 'none',
-            }}
-          />
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setViewMode('raw')} disabled={viewMode === 'raw'}>
+            Raw
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('processed')}
+            disabled={viewMode === 'processed'}
+          >
+            Processed
+          </button>
+          <button type="button" onClick={() => setViewMode('split')} disabled={viewMode === 'split'}>
+            Split
+          </button>
+        </div>
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            background: '#000',
+            display: 'grid',
+            gridTemplateColumns: viewMode === 'split' ? '1fr 1fr' : '1fr',
+          }}
+        >
+          {viewMode !== 'processed' ? (
+            <div style={{ position: 'relative', aspectRatio: '4 / 3' }}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                width={640}
+                height={480}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  display: 'block',
+                  transform: 'scaleX(-1)',
+                  background: '#000',
+                }}
+              />
+              <canvas
+                ref={overlayCanvasRef}
+                width={640}
+                height={480}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  transform: 'scaleX(-1)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '10px',
+                  bottom: '10px',
+                  background: 'rgba(0, 0, 0, 0.65)',
+                  color: '#f3f4f6',
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  lineHeight: 1.35,
+                }}
+              >
+                <div>Gesture: {isOpenPalmForward ? 'Open Palm' : isFistForward ? 'Fist Forward' : isFistSide ? 'Fist Side' : 'None'}</div>
+                <div>Hands: {handsCount}</div>
+                <div>Monitor: {monitorLevel.toFixed(2)}</div>
+                <div>Reverb: {reverbMix.toFixed(2)}</div>
+              </div>
+            </div>
+          ) : null}
+          {viewMode !== 'raw' ? (
+            <div style={{ position: 'relative', aspectRatio: '4 / 3', borderLeft: viewMode === 'split' ? '1px solid #222' : undefined }}>
+              {processedSrc ? (
+                <img
+                  src={processedSrc}
+                  alt="Processed output"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                />
+              ) : (
+                <div style={{ color: '#d1d5db', display: 'grid', placeItems: 'center', height: '100%' }}>
+                  No processed frame yet
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div style={{ display: 'grid', placeItems: 'center', marginTop: '16px', gap: '8px' }}>
