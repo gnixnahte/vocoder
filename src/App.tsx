@@ -8,6 +8,8 @@ import { useMicMonitor } from './hooks/useMicMonitor'
 
 const DEFAULT_API_URL = 'http://127.0.0.1:8000/process'
 const DEFAULT_TREMOLO_DEPTH = 0
+const BASE_TREMOLO_RATE_HZ = 8.5
+const TREMOLO_RATE_SWEEP_HZ = 5.5
 type ViewMode = 'raw' | 'processed' | 'split'
 
 function App() {
@@ -45,6 +47,8 @@ function App() {
     singleHandFistForward,
     leftHandRotation,
     singleHandRotation,
+    leftHandForwardTilt,
+    singleHandForwardTilt,
   } = useHandTracking(setStatus)
 
   const { videoRef, canvasRef, cameraOn, processedSrc, startCamera, stopCamera } = useCameraPipeline({
@@ -64,6 +68,7 @@ function App() {
     setMonitorLevel,
     setReverbMix,
     setTremoloDepth,
+    setTremoloRate,
     getMicStream,
     getMonitorStream,
   } = useMicMonitor({ setStatus })
@@ -109,6 +114,26 @@ function App() {
     leftHandRotation,
     setTremoloDepth,
     singleHandRotation,
+  ])
+
+  useEffect(() => {
+    let tiltAmount = 0
+
+    if (handsCount === 1) {
+      tiltAmount = singleHandFistForward ? singleHandForwardTilt : 0
+    } else if (leftHandFistForward) {
+      tiltAmount = leftHandForwardTilt
+    }
+
+    const tremoloRateHz = BASE_TREMOLO_RATE_HZ + tiltAmount * TREMOLO_RATE_SWEEP_HZ
+    setTremoloRate(tremoloRateHz)
+  }, [
+    handsCount,
+    leftHandFistForward,
+    leftHandForwardTilt,
+    setTremoloRate,
+    singleHandFistForward,
+    singleHandForwardTilt,
   ])
 
   const beginRecording = () => {

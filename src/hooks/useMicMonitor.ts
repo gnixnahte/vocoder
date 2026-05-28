@@ -6,6 +6,8 @@ type UseMicMonitorArgs = {
 
 const DEFAULT_TREMOLO_RATE_HZ = 8.5
 const TREMOLO_INTENSITY = 0.45
+const MIN_TREMOLO_RATE_HZ = 2.5
+const MAX_TREMOLO_RATE_HZ = 13
 
 export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -231,6 +233,15 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     tremoloDepthGainNode.gain.setTargetAtTime(clampedDepth * TREMOLO_INTENSITY, now, 0.04)
   }, [])
 
+  const setTremoloRate = useCallback((rateHz: number) => {
+    const audioContext = audioContextRef.current
+    const tremoloOscillatorNode = tremoloOscillatorRef.current
+    if (!audioContext || !tremoloOscillatorNode) return
+
+    const clampedRate = Math.max(MIN_TREMOLO_RATE_HZ, Math.min(MAX_TREMOLO_RATE_HZ, rateHz))
+    tremoloOscillatorNode.frequency.setTargetAtTime(clampedRate, audioContext.currentTime, 0.05)
+  }, [])
+
   useEffect(() => {
     void refreshAudioInputs()
     const mediaDevices = navigator.mediaDevices
@@ -277,6 +288,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     setMonitorLevel,
     setReverbMix,
     setTremoloDepth,
+    setTremoloRate,
     getMicStream: () => micStreamRef.current,
     getMonitorStream: () => monitorDestinationRef.current?.stream ?? null,
   }

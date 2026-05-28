@@ -31,6 +31,24 @@ const handRotationAmount = (hand: LandmarkPoint[]) => {
   return Math.max(0, Math.min(1, angle / (Math.PI / 2)))
 }
 
+const handForwardTiltAmount = (hand: LandmarkPoint[]) => {
+  const wrist = hand[0]
+  const middleMcp = hand[9]
+  const indexMcp = hand[5]
+  const pinkyMcp = hand[17]
+  if (!wrist || !middleMcp || !indexMcp || !pinkyMcp) return 0
+
+  const palmWidth = distance3(indexMcp, pinkyMcp)
+  if (palmWidth <= 1e-6) return 0
+
+  // MediaPipe z is camera-relative depth; compare knuckles to wrist and normalize by hand size.
+  const pitchNormalized = (wrist.z - middleMcp.z) / palmWidth
+  const minPitch = 0.04
+  const maxPitch = 0.5
+  const mapped = (pitchNormalized - minPitch) / (maxPitch - minPitch)
+  return Math.max(0, Math.min(1, mapped))
+}
+
 const angleBetween = (a: LandmarkPoint, b: LandmarkPoint, c: LandmarkPoint) => {
   const abx = a.x - b.x
   const aby = a.y - b.y
@@ -232,6 +250,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [singleHandFistForward, setSingleHandFistForward] = useState(false)
   const [leftHandRotation, setLeftHandRotation] = useState(0)
   const [singleHandRotation, setSingleHandRotation] = useState(0)
+  const [leftHandForwardTilt, setLeftHandForwardTilt] = useState(0)
+  const [singleHandForwardTilt, setSingleHandForwardTilt] = useState(0)
   const stableGestureRef = useRef<GestureLabel>('none')
   const gestureCandidateRef = useRef<GestureLabel>('none')
   const candidateFramesRef = useRef(0)
@@ -346,6 +366,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const leftShape = leftHand ? analyzeHandShape(leftHand) : null
     setLeftHandFistForward(Boolean(leftShape?.isFistForward))
     setLeftHandRotation(leftHand ? handRotationAmount(leftHand) : 0)
+    setLeftHandForwardTilt(leftHand ? handForwardTiltAmount(leftHand) : 0)
 
     if (result.landmarks.length === 1) {
       const singleHand = result.landmarks[0]
@@ -393,10 +414,12 @@ export function useHandTracking(setStatus: (value: string) => void) {
       setSingleHandPinchMix(pinchMix)
       setSingleHandFistForward(singleShape.isFistForward)
       setSingleHandRotation(handRotationAmount(singleHand as LandmarkPoint[]))
+      setSingleHandForwardTilt(handForwardTiltAmount(singleHand as LandmarkPoint[]))
     } else {
       setSingleHandPinchMix(0)
       setSingleHandFistForward(false)
       setSingleHandRotation(0)
+      setSingleHandForwardTilt(0)
     }
 
     overlayCtx.strokeStyle = '#ff2d2d'
@@ -443,6 +466,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setSingleHandFistForward(false)
     setLeftHandRotation(0)
     setSingleHandRotation(0)
+    setLeftHandForwardTilt(0)
+    setSingleHandForwardTilt(0)
     stableGestureRef.current = 'none'
     gestureCandidateRef.current = 'none'
     candidateFramesRef.current = 0
@@ -505,5 +530,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     singleHandFistForward,
     leftHandRotation,
     singleHandRotation,
+    leftHandForwardTilt,
+    singleHandForwardTilt,
   }
 }
