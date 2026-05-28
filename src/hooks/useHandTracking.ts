@@ -336,7 +336,12 @@ export function useHandTracking(setStatus: (value: string) => void) {
 
     const rightHandHeight = rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0
     const nextLeftHandHeight = leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0
-    setHandHeight(rightHandHeight)
+    const primaryWrist = result.landmarks[0]?.[0]
+    const primaryHandHeight = primaryWrist ? Math.max(0, Math.min(1, 1 - primaryWrist.y)) : 0
+    const activeHandHeight = result.landmarks.length === 1
+      ? primaryHandHeight
+      : rightHandHeight
+    setHandHeight(activeHandHeight)
     setLeftHandHeight(nextLeftHandHeight)
     const leftShape = leftHand ? analyzeHandShape(leftHand) : null
     setLeftHandFistForward(Boolean(leftShape?.isFistForward))

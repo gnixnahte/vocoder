@@ -62,7 +62,7 @@ export function ControlsPanel({
   const metrics = [
     `Status: ${status}`,
     `Hands detected: ${handsCount}`,
-    `Right hand height: ${handHeight.toFixed(2)}`,
+    `Active hand height: ${handHeight.toFixed(2)}`,
     `Left hand height: ${leftHandHeight.toFixed(2)}`,
     `Single hand pinch mix: ${singleHandPinchMix.toFixed(2)}`,
     `Monitor level: ${monitorLevel.toFixed(2)}`,
