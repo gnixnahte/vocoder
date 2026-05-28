@@ -94,8 +94,8 @@ function App() {
     let gestureDepth = 0
 
     if (handsCount === 1) {
-      // One-hand mode: tremolo follows that hand's rotation directly.
-      gestureDepth = singleHandRotation
+      // One-hand mode: only allow tremolo when the hand is a forward-facing fist.
+      gestureDepth = singleHandFistForward ? singleHandRotation : 0
     } else {
       // Two-hand mode (or any non-one-hand case):
       // only allow tremolo when the left hand is a forward fist.
@@ -113,6 +113,7 @@ function App() {
     leftHandFistForward,
     leftHandRotation,
     setTremoloDepth,
+    singleHandFistForward,
     singleHandRotation,
   ])
 
@@ -349,6 +350,8 @@ function App() {
         singleHandFistForward={singleHandFistForward}
         leftHandRotation={leftHandRotation}
         singleHandRotation={singleHandRotation}
+        leftHandForwardTilt={leftHandForwardTilt}
+        singleHandForwardTilt={singleHandForwardTilt}
       />
 
       <section style={{ maxWidth: '700px', margin: '0 auto' }}>

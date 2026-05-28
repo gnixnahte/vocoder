@@ -27,6 +27,8 @@ type ControlsPanelProps = {
   singleHandFistForward: boolean
   leftHandRotation: number
   singleHandRotation: number
+  leftHandForwardTilt: number
+  singleHandForwardTilt: number
 }
 
 export function ControlsPanel({
@@ -58,6 +60,8 @@ export function ControlsPanel({
   singleHandFistForward,
   leftHandRotation,
   singleHandRotation,
+  leftHandForwardTilt,
+  singleHandForwardTilt,
 }: ControlsPanelProps) {
   const metrics = [
     `Status: ${status}`,
@@ -76,6 +80,8 @@ export function ControlsPanel({
     `Single fist forward: ${singleHandFistForward ? 'yes' : 'no'}`,
     `Left hand rotation: ${leftHandRotation.toFixed(2)}`,
     `Single hand rotation: ${singleHandRotation.toFixed(2)}`,
+    `Left hand forward tilt: ${leftHandForwardTilt.toFixed(2)}`,
+    `Single hand forward tilt: ${singleHandForwardTilt.toFixed(2)}`,
   ]
 
   return (
