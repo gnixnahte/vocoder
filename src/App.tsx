@@ -45,6 +45,7 @@ function App() {
     isFistSideRight,
     leftHandFistForward,
     rightHandClosedFist,
+    singleHandPinkyUpClosed,
     singleHandFistForward,
     leftHandRotation,
     singleHandRotation,
@@ -121,9 +122,12 @@ function App() {
 
   useEffect(() => {
     const twoHandsAvailable = handsCount >= 2
-    const enableVocoder = twoHandsAvailable && rightHandClosedFist
+    const oneHandMode = handsCount === 1
+    const enableVocoder =
+      (twoHandsAvailable && rightHandClosedFist)
+      || (oneHandMode && singleHandPinkyUpClosed)
     setVocoderEnabled(enableVocoder)
-  }, [handsCount, rightHandClosedFist, setVocoderEnabled])
+  }, [handsCount, rightHandClosedFist, setVocoderEnabled, singleHandPinkyUpClosed])
 
   useEffect(() => {
     let tiltAmount = 0

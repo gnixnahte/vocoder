@@ -113,6 +113,7 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
       isOpenPalmForward: false,
       isFistForward: false,
       isFistSide: false,
+      isPinkyUpClosed: false,
       sideDirection: 'none' as SideDirection,
       forwardScore: 0,
       sideScore: 0,
@@ -125,6 +126,9 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     isFingerExtended(hand, 16, 14, 13),
     isFingerExtended(hand, 20, 18, 17),
   ].filter(Boolean).length
+  const isMiddleExtended = isFingerExtended(hand, 12, 10, 9)
+  const isRingExtended = isFingerExtended(hand, 16, 14, 13)
+  const isPinkyExtended = isFingerExtended(hand, 20, 18, 17)
   const curledFingersCount = [
     isFingerCurled(hand, 8, 6, 5),
     isFingerCurled(hand, 12, 10, 9),
@@ -191,6 +195,16 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     && (sideFacingPalm || sideProfileStrong || handWidth / handHeight < 0.92)
     && avgTipToWrist < palmWidth * 1.95
   const closedHand = closedFist || closedSideEvidence
+  const nonPinkyCurledCount = [
+    isFingerExtended(hand, 8, 6, 5),
+    isMiddleExtended,
+    isRingExtended,
+  ].filter((extended) => !extended).length
+  const pinkyUpClosed =
+    closedHand
+    && openFingersCount === 1
+    && isPinkyExtended
+    && nonPinkyCurledCount >= 2
   const sideFistFallback =
     compactKnuckles
     && fingertipClusterSpread < palmWidth * 1.05
@@ -225,6 +239,7 @@ const analyzeHandShape = (hand: LandmarkPoint[]) => {
     isOpenPalmForward: openPalmForward,
     isFistForward: fistForward,
     isFistSide: fistSide,
+    isPinkyUpClosed: pinkyUpClosed,
     sideDirection,
     forwardScore,
     sideScore,
@@ -248,6 +263,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [isFistSideRight, setIsFistSideRight] = useState(false)
   const [leftHandFistForward, setLeftHandFistForward] = useState(false)
   const [rightHandClosedFist, setRightHandClosedFist] = useState(false)
+  const [pinkyUpClosed, setPinkyUpClosed] = useState(false)
+  const [rightPinkyUpClosed, setRightPinkyUpClosed] = useState(false)
+  const [singleHandPinkyUpClosed, setSingleHandPinkyUpClosed] = useState(false)
   const [singleHandFistForward, setSingleHandFistForward] = useState(false)
   const [leftHandRotation, setLeftHandRotation] = useState(0)
   const [singleHandRotation, setSingleHandRotation] = useState(0)
@@ -298,6 +316,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
         isOpenPalmForward: false,
         isFistForward: false,
         isFistSide: false,
+        isPinkyUpClosed: false,
         sideDirection: 'none' as SideDirection,
         forwardScore: 0,
         sideScore: 0,
@@ -339,6 +358,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setIsOpenPalmForward(stableGesture === 'open_palm_forward')
     setIsFistForward(stableGesture === 'fist_forward')
     setIsFistSide(stableGesture === 'fist_side')
+    setPinkyUpClosed(shape.isPinkyUpClosed)
     const stableSideDirection = stableGesture === 'fist_side' ? shape.sideDirection : 'none'
     setIsFistSideLeft(stableSideDirection === 'left')
     setIsFistSideRight(stableSideDirection === 'right')
@@ -369,6 +389,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const rightShape = rightHand ? analyzeHandShape(rightHand) : null
     setLeftHandFistForward(Boolean(leftShape?.isFistForward))
     setRightHandClosedFist(Boolean(rightShape?.isFistForward || rightShape?.isFistSide))
+    setRightPinkyUpClosed(Boolean(rightShape?.isPinkyUpClosed))
     setLeftHandRotation(leftHand ? handRotationAmount(leftHand) : 0)
     setLeftHandForwardTilt(leftHand ? handForwardTiltAmount(leftHand) : 0)
 
@@ -416,11 +437,13 @@ export function useHandTracking(setStatus: (value: string) => void) {
       const curvedPinch = Math.pow(clampedPinch, 0.8)
       const pinchMix = curvedPinch >= 0.85 ? 1 : curvedPinch <= 0.06 ? 0 : curvedPinch
       setSingleHandPinchMix(pinchMix)
+      setSingleHandPinkyUpClosed(singleShape.isPinkyUpClosed)
       setSingleHandFistForward(singleShape.isFistForward)
       setSingleHandRotation(handRotationAmount(singleHand as LandmarkPoint[]))
       setSingleHandForwardTilt(handForwardTiltAmount(singleHand as LandmarkPoint[]))
     } else {
       setSingleHandPinchMix(0)
+      setSingleHandPinkyUpClosed(false)
       setSingleHandFistForward(false)
       setSingleHandRotation(0)
       setSingleHandForwardTilt(0)
@@ -468,6 +491,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setIsFistSideRight(false)
     setLeftHandFistForward(false)
     setRightHandClosedFist(false)
+    setPinkyUpClosed(false)
+    setRightPinkyUpClosed(false)
+    setSingleHandPinkyUpClosed(false)
     setSingleHandFistForward(false)
     setLeftHandRotation(0)
     setSingleHandRotation(0)
@@ -533,6 +559,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
     isFistSideRight,
     leftHandFistForward,
     rightHandClosedFist,
+    pinkyUpClosed,
+    rightPinkyUpClosed,
+    singleHandPinkyUpClosed,
     singleHandFistForward,
     leftHandRotation,
     singleHandRotation,
