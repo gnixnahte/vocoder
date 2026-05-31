@@ -247,6 +247,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const [isFistSideLeft, setIsFistSideLeft] = useState(false)
   const [isFistSideRight, setIsFistSideRight] = useState(false)
   const [leftHandFistForward, setLeftHandFistForward] = useState(false)
+  const [rightHandClosedFist, setRightHandClosedFist] = useState(false)
   const [singleHandFistForward, setSingleHandFistForward] = useState(false)
   const [leftHandRotation, setLeftHandRotation] = useState(0)
   const [singleHandRotation, setSingleHandRotation] = useState(0)
@@ -364,7 +365,10 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setHandHeight(activeHandHeight)
     setLeftHandHeight(nextLeftHandHeight)
     const leftShape = leftHand ? analyzeHandShape(leftHand) : null
+    const rightHand = rightHandIndex >= 0 ? (result.landmarks[rightHandIndex] as LandmarkPoint[]) : undefined
+    const rightShape = rightHand ? analyzeHandShape(rightHand) : null
     setLeftHandFistForward(Boolean(leftShape?.isFistForward))
+    setRightHandClosedFist(Boolean(rightShape?.isFistForward || rightShape?.isFistSide))
     setLeftHandRotation(leftHand ? handRotationAmount(leftHand) : 0)
     setLeftHandForwardTilt(leftHand ? handForwardTiltAmount(leftHand) : 0)
 
@@ -463,6 +467,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     setIsFistSideLeft(false)
     setIsFistSideRight(false)
     setLeftHandFistForward(false)
+    setRightHandClosedFist(false)
     setSingleHandFistForward(false)
     setLeftHandRotation(0)
     setSingleHandRotation(0)
@@ -527,6 +532,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     isFistSideLeft,
     isFistSideRight,
     leftHandFistForward,
+    rightHandClosedFist,
     singleHandFistForward,
     leftHandRotation,
     singleHandRotation,

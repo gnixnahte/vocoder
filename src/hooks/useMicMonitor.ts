@@ -8,6 +8,7 @@ const DEFAULT_TREMOLO_RATE_HZ = 8.5
 const TREMOLO_INTENSITY = 0.45
 const MIN_TREMOLO_RATE_HZ = 2.5
 const MAX_TREMOLO_RATE_HZ = 13
+const VOCODER_RING_HZ = 92
 
 export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -20,6 +21,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const tremoloGainRef = useRef<GainNode | null>(null)
   const tremoloDepthGainRef = useRef<GainNode | null>(null)
   const tremoloOscillatorRef = useRef<OscillatorNode | null>(null)
+  const vocoderDryGainRef = useRef<GainNode | null>(null)
+  const vocoderWetGainRef = useRef<GainNode | null>(null)
+  const vocoderRingModGainRef = useRef<GainNode | null>(null)
+  const vocoderRingOscillatorRef = useRef<OscillatorNode | null>(null)
   const monitorDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const smoothedMonitorLevelRef = useRef(0)
 
@@ -82,6 +87,11 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       tremoloDepthGainRef.current?.disconnect()
       tremoloOscillatorRef.current?.disconnect()
       tremoloOscillatorRef.current?.stop()
+      vocoderDryGainRef.current?.disconnect()
+      vocoderWetGainRef.current?.disconnect()
+      vocoderRingModGainRef.current?.disconnect()
+      vocoderRingOscillatorRef.current?.disconnect()
+      vocoderRingOscillatorRef.current?.stop()
       monitorDestinationRef.current?.disconnect()
       micStreamRef.current?.getTracks().forEach((track) => track.stop())
       micSourceRef.current = null
@@ -92,6 +102,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       tremoloGainRef.current = null
       tremoloDepthGainRef.current = null
       tremoloOscillatorRef.current = null
+      vocoderDryGainRef.current = null
+      vocoderWetGainRef.current = null
+      vocoderRingModGainRef.current = null
+      vocoderRingOscillatorRef.current = null
       monitorDestinationRef.current = null
       micStreamRef.current = null
       smoothedMonitorLevelRef.current = 0
@@ -143,6 +157,13 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       const tremoloGainNode = audioContext.createGain()
       const tremoloDepthGainNode = audioContext.createGain()
       const tremoloOscillatorNode = audioContext.createOscillator()
+      const vocoderDryGainNode = audioContext.createGain()
+      const vocoderWetGainNode = audioContext.createGain()
+      const vocoderHighpassNode = audioContext.createBiquadFilter()
+      const vocoderRingModGainNode = audioContext.createGain()
+      const vocoderRingOscillatorNode = audioContext.createOscillator()
+      const vocoderBandpassNode = audioContext.createBiquadFilter()
+      const vocoderCompressorNode = audioContext.createDynamicsCompressor()
       const monitorDestination = audioContext.createMediaStreamDestination()
 
       convolverNode.buffer = createImpulseResponse(audioContext)
@@ -153,6 +174,22 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       tremoloGainNode.gain.value = 1
       tremoloDepthGainNode.gain.value = 0
       tremoloOscillatorNode.frequency.value = DEFAULT_TREMOLO_RATE_HZ
+      vocoderDryGainNode.gain.value = 1
+      vocoderWetGainNode.gain.value = 0
+      vocoderHighpassNode.type = 'highpass'
+      vocoderHighpassNode.frequency.value = 160
+      vocoderHighpassNode.Q.value = 0.7
+      vocoderRingModGainNode.gain.value = 0
+      vocoderRingOscillatorNode.type = 'sawtooth'
+      vocoderRingOscillatorNode.frequency.value = VOCODER_RING_HZ
+      vocoderBandpassNode.type = 'bandpass'
+      vocoderBandpassNode.frequency.value = 1250
+      vocoderBandpassNode.Q.value = 1.2
+      vocoderCompressorNode.threshold.value = -26
+      vocoderCompressorNode.knee.value = 10
+      vocoderCompressorNode.ratio.value = 8
+      vocoderCompressorNode.attack.value = 0.003
+      vocoderCompressorNode.release.value = 0.08
 
       source.connect(dryGainNode)
       dryGainNode.connect(gainNode)
@@ -165,9 +202,19 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       gainNode.connect(tremoloGainNode)
       tremoloOscillatorNode.connect(tremoloDepthGainNode)
       tremoloDepthGainNode.connect(tremoloGainNode.gain)
-      tremoloGainNode.connect(audioContext.destination)
-      tremoloGainNode.connect(monitorDestination)
+      tremoloGainNode.connect(vocoderDryGainNode)
+      tremoloGainNode.connect(vocoderHighpassNode)
+      vocoderHighpassNode.connect(vocoderRingModGainNode)
+      vocoderRingOscillatorNode.connect(vocoderRingModGainNode.gain)
+      vocoderRingModGainNode.connect(vocoderBandpassNode)
+      vocoderBandpassNode.connect(vocoderCompressorNode)
+      vocoderCompressorNode.connect(vocoderWetGainNode)
+      vocoderDryGainNode.connect(audioContext.destination)
+      vocoderDryGainNode.connect(monitorDestination)
+      vocoderWetGainNode.connect(audioContext.destination)
+      vocoderWetGainNode.connect(monitorDestination)
       tremoloOscillatorNode.start()
+      vocoderRingOscillatorNode.start()
 
       micStreamRef.current = stream
       micSourceRef.current = source
@@ -178,6 +225,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       tremoloGainRef.current = tremoloGainNode
       tremoloDepthGainRef.current = tremoloDepthGainNode
       tremoloOscillatorRef.current = tremoloOscillatorNode
+      vocoderDryGainRef.current = vocoderDryGainNode
+      vocoderWetGainRef.current = vocoderWetGainNode
+      vocoderRingModGainRef.current = vocoderRingModGainNode
+      vocoderRingOscillatorRef.current = vocoderRingOscillatorNode
       monitorDestinationRef.current = monitorDestination
       smoothedMonitorLevelRef.current = 0
       setMicOn(true)
@@ -242,6 +293,27 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     tremoloOscillatorNode.frequency.setTargetAtTime(clampedRate, audioContext.currentTime, 0.05)
   }, [])
 
+  const setVocoderEnabled = useCallback((enabled: boolean) => {
+    const audioContext = audioContextRef.current
+    const vocoderDryGainNode = vocoderDryGainRef.current
+    const vocoderWetGainNode = vocoderWetGainRef.current
+    const vocoderRingModGainNode = vocoderRingModGainRef.current
+    if (!audioContext || !vocoderDryGainNode || !vocoderWetGainNode || !vocoderRingModGainNode) {
+      return
+    }
+
+    const now = audioContext.currentTime
+    if (enabled) {
+      vocoderDryGainNode.gain.setTargetAtTime(0.45, now, 0.04)
+      vocoderWetGainNode.gain.setTargetAtTime(0.55, now, 0.04)
+      vocoderRingModGainNode.gain.setTargetAtTime(0.8, now, 0.04)
+    } else {
+      vocoderDryGainNode.gain.setTargetAtTime(1, now, 0.05)
+      vocoderWetGainNode.gain.setTargetAtTime(0, now, 0.05)
+      vocoderRingModGainNode.gain.setTargetAtTime(0, now, 0.05)
+    }
+  }, [])
+
   useEffect(() => {
     void refreshAudioInputs()
     const mediaDevices = navigator.mediaDevices
@@ -289,6 +361,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     setReverbMix,
     setTremoloDepth,
     setTremoloRate,
+    setVocoderEnabled,
     getMicStream: () => micStreamRef.current,
     getMonitorStream: () => monitorDestinationRef.current?.stream ?? null,
   }

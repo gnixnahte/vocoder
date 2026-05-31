@@ -44,6 +44,7 @@ function App() {
     isFistSideLeft,
     isFistSideRight,
     leftHandFistForward,
+    rightHandClosedFist,
     singleHandFistForward,
     leftHandRotation,
     singleHandRotation,
@@ -69,6 +70,7 @@ function App() {
     setReverbMix,
     setTremoloDepth,
     setTremoloRate,
+    setVocoderEnabled,
     getMicStream,
     getMonitorStream,
   } = useMicMonitor({ setStatus })
@@ -116,6 +118,12 @@ function App() {
     singleHandFistForward,
     singleHandRotation,
   ])
+
+  useEffect(() => {
+    const twoHandsAvailable = handsCount >= 2
+    const enableVocoder = twoHandsAvailable && rightHandClosedFist
+    setVocoderEnabled(enableVocoder)
+  }, [handsCount, rightHandClosedFist, setVocoderEnabled])
 
   useEffect(() => {
     let tiltAmount = 0
