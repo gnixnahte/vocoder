@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CAMERA_HEIGHT, CAMERA_WIDTH } from '../cameraConfig'
 
 type UseCameraPipelineArgs = {
   apiUrl: string
@@ -42,7 +43,7 @@ export function useCameraPipeline({
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
+        video: { width: CAMERA_WIDTH, height: CAMERA_HEIGHT },
         audio: false,
       })
       if (!videoRef.current) return

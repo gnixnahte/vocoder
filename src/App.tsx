@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import lamejs from 'lamejs'
 import './App.css'
+import { CAMERA_ASPECT_RATIO, CAMERA_HEIGHT, CAMERA_WIDTH } from './cameraConfig'
 import { ControlsPanel } from './components/ControlsPanel'
 import { useCameraPipeline } from './hooks/useCameraPipeline'
 import { useHandTracking } from './hooks/useHandTracking'
@@ -392,14 +393,14 @@ function App() {
           }}
         >
           {viewMode !== 'processed' ? (
-            <div style={{ position: 'relative', aspectRatio: '4 / 3' }}>
+            <div style={{ position: 'relative', aspectRatio: CAMERA_ASPECT_RATIO }}>
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                width={640}
-                height={480}
+                width={CAMERA_WIDTH}
+                height={CAMERA_HEIGHT}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -411,8 +412,8 @@ function App() {
               />
               <canvas
                 ref={overlayCanvasRef}
-                width={640}
-                height={480}
+                width={CAMERA_WIDTH}
+                height={CAMERA_HEIGHT}
                 style={{
                   position: 'absolute',
                   inset: 0,
@@ -443,7 +444,13 @@ function App() {
             </div>
           ) : null}
           {viewMode !== 'raw' ? (
-            <div style={{ position: 'relative', aspectRatio: '4 / 3', borderLeft: viewMode === 'split' ? '1px solid #222' : undefined }}>
+            <div
+              style={{
+                position: 'relative',
+                aspectRatio: CAMERA_ASPECT_RATIO,
+                borderLeft: viewMode === 'split' ? '1px solid #222' : undefined,
+              }}
+            >
               {processedSrc ? (
                 <img
                   src={processedSrc}
@@ -492,7 +499,7 @@ function App() {
         ) : null}
       </section>
 
-      <canvas ref={canvasRef} width={640} height={480} style={{ display: 'none' }} />
+      <canvas ref={canvasRef} width={CAMERA_WIDTH} height={CAMERA_HEIGHT} style={{ display: 'none' }} />
     </main>
   )
 }

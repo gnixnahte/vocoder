@@ -1,0 +1,3 @@
+export const CAMERA_WIDTH = 960
+export const CAMERA_HEIGHT = 540
+export const CAMERA_ASPECT_RATIO = `${CAMERA_WIDTH} / ${CAMERA_HEIGHT}`
