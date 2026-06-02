@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import lamejs from 'lamejs'
 import './App.css'
-import { CAMERA_HEIGHT, CAMERA_WIDTH } from './cameraConfig'
+import { CAMERA_ASPECT_RATIO, CAMERA_HEIGHT, CAMERA_WIDTH } from './cameraConfig'
 import { ControlsPanel } from './components/ControlsPanel'
 import { useCameraPipeline } from './hooks/useCameraPipeline'
 import { useHandTracking } from './hooks/useHandTracking'
@@ -58,7 +58,6 @@ function App() {
     videoRef,
     canvasRef,
     cameraOn,
-    cameraAspectRatio,
     processedSrc,
     startCamera,
     stopCamera,
@@ -69,8 +68,6 @@ function App() {
     clearOverlay,
     setStatus,
   })
-
-  const cameraAspectRatioStyle = `${cameraAspectRatio}`
 
   const {
     micOn,
@@ -377,7 +374,7 @@ function App() {
         singleHandForwardTilt={singleHandForwardTilt}
       />
 
-      <section style={{ maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
+      <section style={{ maxWidth: '700px', margin: '0 auto' }}>
         <h2>Live Camera</h2>
         <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
           <button type="button" onClick={() => setViewMode('raw')} disabled={viewMode === 'raw'}>
@@ -403,13 +400,7 @@ function App() {
           }}
         >
           {viewMode !== 'processed' ? (
-            <div
-              style={{
-                position: 'relative',
-                aspectRatio: cameraAspectRatioStyle,
-                overflow: 'hidden',
-              }}
-            >
+            <div style={{ position: 'relative', aspectRatio: CAMERA_ASPECT_RATIO }}>
               <video
                 ref={videoRef}
                 autoPlay
@@ -418,11 +409,10 @@ function App() {
                 width={CAMERA_WIDTH}
                 height={CAMERA_HEIGHT}
                 style={{
-                  position: 'absolute',
-                  inset: 0,
                   width: '100%',
                   height: '100%',
-                  objectFit: 'fill',
+                  objectFit: 'contain',
+                  display: 'block',
                   transform: 'scaleX(-1)',
                   background: '#000',
                 }}
@@ -464,7 +454,7 @@ function App() {
             <div
               style={{
                 position: 'relative',
-                aspectRatio: cameraAspectRatioStyle,
+                aspectRatio: CAMERA_ASPECT_RATIO,
                 borderLeft: viewMode === 'split' ? '1px solid #222' : undefined,
               }}
             >
@@ -472,7 +462,7 @@ function App() {
                 <img
                   src={processedSrc}
                   alt="Processed output"
-                  style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
                 />
               ) : (
                 <div style={{ color: '#d1d5db', display: 'grid', placeItems: 'center', height: '100%' }}>

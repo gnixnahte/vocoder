@@ -22,24 +22,6 @@ export function useCameraPipeline({
 
   const [cameraOn, setCameraOn] = useState(false)
   const [processedSrc, setProcessedSrc] = useState('')
-  const [cameraAspectRatio, setCameraAspectRatio] = useState(CAMERA_WIDTH / CAMERA_HEIGHT)
-
-  const syncCameraAspectRatio = (video: HTMLVideoElement, stream?: MediaStream) => {
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      setCameraAspectRatio(video.videoWidth / video.videoHeight)
-      return
-    }
-
-    const trackSettings = stream?.getVideoTracks()[0]?.getSettings()
-    if (trackSettings?.aspectRatio && Number.isFinite(trackSettings.aspectRatio)) {
-      setCameraAspectRatio(trackSettings.aspectRatio)
-      return
-    }
-
-    if (trackSettings?.width && trackSettings?.height) {
-      setCameraAspectRatio(trackSettings.width / trackSettings.height)
-    }
-  }
 
   const stopLoop = () => {
     if (timerRef.current !== null) {
@@ -53,13 +35,8 @@ export function useCameraPipeline({
     const video = videoRef.current
     const stream = video?.srcObject as MediaStream | null
     stream?.getTracks().forEach((track) => track.stop())
-    if (video) {
-      video.onloadedmetadata = null
-      video.onresize = null
-      video.srcObject = null
-    }
+    if (video) video.srcObject = null
     clearOverlay()
-    setCameraAspectRatio(CAMERA_WIDTH / CAMERA_HEIGHT)
     setCameraOn(false)
   }
 
@@ -70,12 +47,8 @@ export function useCameraPipeline({
         audio: false,
       })
       if (!videoRef.current) return
-      const video = videoRef.current
-      video.srcObject = stream
-      video.onloadedmetadata = () => syncCameraAspectRatio(video, stream)
-      video.onresize = () => syncCameraAspectRatio(video, stream)
-      await video.play()
-      syncCameraAspectRatio(video, stream)
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
       setCameraOn(true)
       setStatus('Camera started. Processing...')
     } catch (error) {
@@ -88,11 +61,6 @@ export function useCameraPipeline({
     const canvas = canvasRef.current
     if (!video || !canvas || video.readyState < 2) return
     detectHands(video)
-
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-    }
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -157,7 +125,6 @@ export function useCameraPipeline({
     videoRef,
     canvasRef,
     cameraOn,
-    cameraAspectRatio,
     processedSrc,
     startCamera,
     stopCamera,
