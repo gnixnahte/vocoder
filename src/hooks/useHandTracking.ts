@@ -278,7 +278,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const detectHands = (video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
     const overlayCanvas = overlayCanvasRef.current
-    if (!handLandmarker || !overlayCanvas) return
+    if (!overlayCanvas || !video.videoWidth || !video.videoHeight) return
 
     if (overlayCanvas.width !== video.videoWidth || overlayCanvas.height !== video.videoHeight) {
       overlayCanvas.width = video.videoWidth
@@ -288,7 +288,8 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const overlayCtx = overlayCanvas.getContext('2d')
     if (!overlayCtx) return
 
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
+    overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height)
+    if (!handLandmarker) return
 
     const result: HandLandmarkerResult = handLandmarker.detectForVideo(
       video,

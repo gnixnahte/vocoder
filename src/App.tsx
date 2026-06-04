@@ -400,7 +400,14 @@ function App() {
           }}
         >
           {viewMode !== 'processed' ? (
-            <div style={{ position: 'relative', aspectRatio: CAMERA_ASPECT_RATIO }}>
+            <div
+              style={{
+                position: 'relative',
+                alignSelf: 'start',
+                width: '100%',
+                transform: 'scaleX(-1)',
+              }}
+            >
               <video
                 ref={videoRef}
                 autoPlay
@@ -410,10 +417,9 @@ function App() {
                 height={CAMERA_HEIGHT}
                 style={{
                   width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
+                  height: 'auto',
                   display: 'block',
-                  transform: 'scaleX(-1)',
+                  visibility: 'hidden',
                   background: '#000',
                 }}
               />
@@ -426,15 +432,15 @@ function App() {
                   inset: 0,
                   width: '100%',
                   height: '100%',
-                  transform: 'scaleX(-1)',
                   pointerEvents: 'none',
                 }}
               />
               <div
                 style={{
                   position: 'absolute',
-                  left: '10px',
+                  right: '10px',
                   bottom: '10px',
+                  transform: 'scaleX(-1)',
                   background: 'rgba(0, 0, 0, 0.65)',
                   color: '#f3f4f6',
                   padding: '8px 10px',

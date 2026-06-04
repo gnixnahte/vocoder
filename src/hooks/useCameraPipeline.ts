@@ -19,9 +19,16 @@ export function useCameraPipeline({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const timerRef = useRef<number | null>(null)
+  const detectionFrameRef = useRef<number | null>(null)
+  const detectionUsesVideoFrameCallbackRef = useRef(false)
+  const detectHandsRef = useRef(detectHands)
 
   const [cameraOn, setCameraOn] = useState(false)
   const [processedSrc, setProcessedSrc] = useState('')
+
+  useEffect(() => {
+    detectHandsRef.current = detectHands
+  }, [detectHands])
 
   const stopLoop = () => {
     if (timerRef.current !== null) {
@@ -30,8 +37,47 @@ export function useCameraPipeline({
     }
   }
 
+  const stopDetectionLoop = () => {
+    const frameId = detectionFrameRef.current
+    if (frameId === null) return
+
+    const video = videoRef.current
+    if (detectionUsesVideoFrameCallbackRef.current && video?.cancelVideoFrameCallback) {
+      video.cancelVideoFrameCallback(frameId)
+    } else {
+      window.cancelAnimationFrame(frameId)
+    }
+    detectionFrameRef.current = null
+  }
+
+  const startDetectionLoop = (video: HTMLVideoElement) => {
+    stopDetectionLoop()
+
+    if (video.requestVideoFrameCallback) {
+      detectionUsesVideoFrameCallbackRef.current = true
+      const detectVideoFrame = () => {
+        if (video.readyState >= 2) detectHandsRef.current(video)
+        detectionFrameRef.current = video.requestVideoFrameCallback(detectVideoFrame)
+      }
+      detectionFrameRef.current = video.requestVideoFrameCallback(detectVideoFrame)
+      return
+    }
+
+    detectionUsesVideoFrameCallbackRef.current = false
+    let lastVideoTime = -1
+    const detectAnimationFrame = () => {
+      if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime
+        detectHandsRef.current(video)
+      }
+      detectionFrameRef.current = window.requestAnimationFrame(detectAnimationFrame)
+    }
+    detectionFrameRef.current = window.requestAnimationFrame(detectAnimationFrame)
+  }
+
   const stopCamera = () => {
     stopLoop()
+    stopDetectionLoop()
     const video = videoRef.current
     const stream = video?.srcObject as MediaStream | null
     stream?.getTracks().forEach((track) => track.stop())
@@ -49,6 +95,7 @@ export function useCameraPipeline({
       if (!videoRef.current) return
       videoRef.current.srcObject = stream
       await videoRef.current.play()
+      startDetectionLoop(videoRef.current)
       setCameraOn(true)
       setStatus('Camera started. Processing...')
     } catch (error) {
@@ -60,7 +107,6 @@ export function useCameraPipeline({
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || video.readyState < 2) return
-    detectHands(video)
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
