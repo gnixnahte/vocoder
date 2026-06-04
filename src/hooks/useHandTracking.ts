@@ -292,7 +292,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     if (!handLandmarker) return
 
     const result: HandLandmarkerResult = handLandmarker.detectForVideo(
-      video,
+      overlayCanvas,
       performance.now(),
     )
 
