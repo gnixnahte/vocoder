@@ -374,7 +374,7 @@ function App() {
         singleHandForwardTilt={singleHandForwardTilt}
       />
 
-      <section style={{ maxWidth: '700px', margin: '0 auto' }}>
+      <section style={{ maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
         <h2>Live Camera</h2>
         <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
           <button type="button" onClick={() => setViewMode('raw')} disabled={viewMode === 'raw'}>

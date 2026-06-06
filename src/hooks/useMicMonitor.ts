@@ -8,7 +8,20 @@ const DEFAULT_TREMOLO_RATE_HZ = 8.5
 const TREMOLO_INTENSITY = 0.45
 const MIN_TREMOLO_RATE_HZ = 2.5
 const MAX_TREMOLO_RATE_HZ = 13
-const VOCODER_RING_HZ = 78
+const VOCODER_RING_HZ = 58
+
+const createSoftFuzzCurve = (amount = 1.35) => {
+  const samples = 44100
+  const curve = new Float32Array(samples)
+  const drive = amount * 8
+
+  for (let i = 0; i < samples; i += 1) {
+    const x = (i * 2) / samples - 1
+    curve[i] = Math.tanh(x * drive) * 0.72
+  }
+
+  return curve
+}
 
 export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -24,6 +37,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const vocoderDryGainRef = useRef<GainNode | null>(null)
   const vocoderWetGainRef = useRef<GainNode | null>(null)
   const vocoderRingModGainRef = useRef<GainNode | null>(null)
+  const vocoderRingDepthGainRef = useRef<GainNode | null>(null)
   const vocoderRingOscillatorRef = useRef<OscillatorNode | null>(null)
   const monitorDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const smoothedMonitorLevelRef = useRef(0)
@@ -90,6 +104,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       vocoderDryGainRef.current?.disconnect()
       vocoderWetGainRef.current?.disconnect()
       vocoderRingModGainRef.current?.disconnect()
+      vocoderRingDepthGainRef.current?.disconnect()
       vocoderRingOscillatorRef.current?.disconnect()
       vocoderRingOscillatorRef.current?.stop()
       monitorDestinationRef.current?.disconnect()
@@ -105,6 +120,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       vocoderDryGainRef.current = null
       vocoderWetGainRef.current = null
       vocoderRingModGainRef.current = null
+      vocoderRingDepthGainRef.current = null
       vocoderRingOscillatorRef.current = null
       monitorDestinationRef.current = null
       micStreamRef.current = null
@@ -161,8 +177,11 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       const vocoderWetGainNode = audioContext.createGain()
       const vocoderHighpassNode = audioContext.createBiquadFilter()
       const vocoderRingModGainNode = audioContext.createGain()
+      const vocoderRingDepthGainNode = audioContext.createGain()
       const vocoderRingOscillatorNode = audioContext.createOscillator()
       const vocoderBandpassNode = audioContext.createBiquadFilter()
+      const vocoderFuzzNode = audioContext.createWaveShaper()
+      const vocoderWarmthNode = audioContext.createBiquadFilter()
       const vocoderCompressorNode = audioContext.createDynamicsCompressor()
       const monitorDestination = audioContext.createMediaStreamDestination()
 
@@ -177,19 +196,25 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       vocoderDryGainNode.gain.value = 1
       vocoderWetGainNode.gain.value = 0
       vocoderHighpassNode.type = 'highpass'
-      vocoderHighpassNode.frequency.value = 110
-      vocoderHighpassNode.Q.value = 0.55
+      vocoderHighpassNode.frequency.value = 75
+      vocoderHighpassNode.Q.value = 0.35
       vocoderRingModGainNode.gain.value = 0
-      vocoderRingOscillatorNode.type = 'triangle'
+      vocoderRingDepthGainNode.gain.value = 0.24
+      vocoderRingOscillatorNode.type = 'sine'
       vocoderRingOscillatorNode.frequency.value = VOCODER_RING_HZ
       vocoderBandpassNode.type = 'bandpass'
-      vocoderBandpassNode.frequency.value = 980
-      vocoderBandpassNode.Q.value = 0.85
-      vocoderCompressorNode.threshold.value = -22
-      vocoderCompressorNode.knee.value = 18
-      vocoderCompressorNode.ratio.value = 4.2
-      vocoderCompressorNode.attack.value = 0.012
-      vocoderCompressorNode.release.value = 0.12
+      vocoderBandpassNode.frequency.value = 720
+      vocoderBandpassNode.Q.value = 0.5
+      vocoderFuzzNode.curve = createSoftFuzzCurve()
+      vocoderFuzzNode.oversample = '4x'
+      vocoderWarmthNode.type = 'lowpass'
+      vocoderWarmthNode.frequency.value = 2400
+      vocoderWarmthNode.Q.value = 0.65
+      vocoderCompressorNode.threshold.value = -26
+      vocoderCompressorNode.knee.value = 24
+      vocoderCompressorNode.ratio.value = 3
+      vocoderCompressorNode.attack.value = 0.025
+      vocoderCompressorNode.release.value = 0.22
 
       source.connect(dryGainNode)
       dryGainNode.connect(gainNode)
@@ -205,9 +230,12 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       tremoloGainNode.connect(vocoderDryGainNode)
       tremoloGainNode.connect(vocoderHighpassNode)
       vocoderHighpassNode.connect(vocoderRingModGainNode)
-      vocoderRingOscillatorNode.connect(vocoderRingModGainNode.gain)
+      vocoderRingOscillatorNode.connect(vocoderRingDepthGainNode)
+      vocoderRingDepthGainNode.connect(vocoderRingModGainNode.gain)
       vocoderRingModGainNode.connect(vocoderBandpassNode)
-      vocoderBandpassNode.connect(vocoderCompressorNode)
+      vocoderBandpassNode.connect(vocoderFuzzNode)
+      vocoderFuzzNode.connect(vocoderWarmthNode)
+      vocoderWarmthNode.connect(vocoderCompressorNode)
       vocoderCompressorNode.connect(vocoderWetGainNode)
       vocoderDryGainNode.connect(audioContext.destination)
       vocoderDryGainNode.connect(monitorDestination)
@@ -228,6 +256,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       vocoderDryGainRef.current = vocoderDryGainNode
       vocoderWetGainRef.current = vocoderWetGainNode
       vocoderRingModGainRef.current = vocoderRingModGainNode
+      vocoderRingDepthGainRef.current = vocoderRingDepthGainNode
       vocoderRingOscillatorRef.current = vocoderRingOscillatorNode
       monitorDestinationRef.current = monitorDestination
       smoothedMonitorLevelRef.current = 0
@@ -304,9 +333,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
 
     const now = audioContext.currentTime
     if (enabled) {
-      vocoderDryGainNode.gain.setTargetAtTime(0.48, now, 0.06)
-      vocoderWetGainNode.gain.setTargetAtTime(0.52, now, 0.06)
-      vocoderRingModGainNode.gain.setTargetAtTime(0.62, now, 0.06)
+      vocoderDryGainNode.gain.setTargetAtTime(0.34, now, 0.08)
+      vocoderWetGainNode.gain.setTargetAtTime(0.72, now, 0.08)
+      vocoderRingModGainNode.gain.setTargetAtTime(0.82, now, 0.08)
     } else {
       vocoderDryGainNode.gain.setTargetAtTime(1, now, 0.05)
       vocoderWetGainNode.gain.setTargetAtTime(0, now, 0.05)
