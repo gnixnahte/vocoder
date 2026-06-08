@@ -3,6 +3,7 @@ import lamejs from 'lamejs'
 import './App.css'
 import { CAMERA_ASPECT_RATIO, CAMERA_HEIGHT, CAMERA_WIDTH } from './cameraConfig'
 import { ControlsPanel } from './components/ControlsPanel'
+import { GestureHud } from './components/GestureHud'
 import { useCameraPipeline } from './hooks/useCameraPipeline'
 import { useHandTracking } from './hooks/useHandTracking'
 import { useMicMonitor } from './hooks/useMicMonitor'
@@ -454,6 +455,24 @@ function App() {
                 <div>Monitor: {monitorLevel.toFixed(2)}</div>
                 <div>Reverb: {reverbMix.toFixed(2)}</div>
               </div>
+              <GestureHud
+                handsCount={handsCount}
+                monitorLevel={monitorLevel}
+                reverbMix={reverbMix}
+                isOpenPalmForward={isOpenPalmForward}
+                isFistForward={isFistForward}
+                isFistSide={isFistSide}
+                isFistSideLeft={isFistSideLeft}
+                isFistSideRight={isFistSideRight}
+                leftHandFistForward={leftHandFistForward}
+                rightHandClosedFist={rightHandClosedFist}
+                singleHandPinkyUpClosed={singleHandPinkyUpClosed}
+                singleHandFistForward={singleHandFistForward}
+                leftHandRotation={leftHandRotation}
+                singleHandRotation={singleHandRotation}
+                leftHandForwardTilt={leftHandForwardTilt}
+                singleHandForwardTilt={singleHandForwardTilt}
+              />
             </div>
           ) : null}
           {viewMode !== 'raw' ? (

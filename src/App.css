@@ -182,3 +182,170 @@
     border-right-color: var(--border);
   }
 }
+
+.gesture-hud {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  width: min(330px, calc(100% - 140px));
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(8, 6, 13, 0.74);
+  color: #f7f7fb;
+  transform: scaleX(-1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+}
+
+.gesture-hud__header,
+.gesture-hud__status,
+.gesture-hud__meter-label,
+.gesture-hud__pills {
+  display: flex;
+  align-items: center;
+}
+
+.gesture-hud__header,
+.gesture-hud__status,
+.gesture-hud__meter-label {
+  justify-content: space-between;
+}
+
+.gesture-hud__header {
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(247, 247, 251, 0.72);
+}
+
+.gesture-hud__header strong {
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.gesture-hud__status {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.gesture-hud__current {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gesture-hud__mode {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(247, 247, 251, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.gesture-hud__mode.is-one-hand {
+  border-color: rgba(77, 201, 255, 0.55);
+  color: #b9efff;
+}
+
+.gesture-hud__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gesture-hud__meter {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.gesture-hud__meter-label {
+  gap: 8px;
+  color: rgba(247, 247, 251, 0.7);
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.gesture-hud__meter-label strong {
+  color: rgba(247, 247, 251, 0.84);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.gesture-hud__track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.gesture-hud__fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: #7f8792;
+  transition: width 90ms linear, background-color 120ms ease;
+}
+
+.gesture-hud__meter.is-active .gesture-hud__fill {
+  background: #42e6a4;
+}
+
+.gesture-hud__pills {
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.gesture-hud__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(247, 247, 251, 0.68);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gesture-hud__pill.is-active {
+  border-color: rgba(66, 230, 164, 0.62);
+  background: rgba(66, 230, 164, 0.16);
+  color: #eafff6;
+}
+
+.gesture-hud__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(247, 247, 251, 0.38);
+}
+
+.gesture-hud__pill.is-active .gesture-hud__dot {
+  background: #42e6a4;
+  box-shadow: 0 0 10px rgba(66, 230, 164, 0.7);
+}
+
+@media (max-width: 720px) {
+  .gesture-hud {
+    right: 10px;
+    bottom: 82px;
+    width: auto;
+  }
+}
