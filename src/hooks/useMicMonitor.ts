@@ -6,6 +6,10 @@ type UseMicMonitorArgs = {
 
 const DEFAULT_TREMOLO_RATE_HZ = 8.5
 const TREMOLO_INTENSITY = 0.45
+const TREMOLO_DEPTH_SMOOTHING = 0.18
+const TREMOLO_RATE_SMOOTHING = 0.14
+const TREMOLO_DEPTH_TIME_CONSTANT = 0.12
+const TREMOLO_RATE_TIME_CONSTANT = 0.18
 const MIN_TREMOLO_RATE_HZ = 2.5
 const MAX_TREMOLO_RATE_HZ = 13
 const VOCODER_RING_HZ = 58
@@ -41,6 +45,8 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const vocoderRingOscillatorRef = useRef<OscillatorNode | null>(null)
   const monitorDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const smoothedMonitorLevelRef = useRef(0)
+  const smoothedTremoloDepthRef = useRef(0)
+  const smoothedTremoloRateRef = useRef(DEFAULT_TREMOLO_RATE_HZ)
 
   const [micOn, setMicOn] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
@@ -125,6 +131,8 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       monitorDestinationRef.current = null
       micStreamRef.current = null
       smoothedMonitorLevelRef.current = 0
+      smoothedTremoloDepthRef.current = 0
+      smoothedTremoloRateRef.current = DEFAULT_TREMOLO_RATE_HZ
       setMicOn(false)
       setStatus('Mic off')
     }, 50)
@@ -260,6 +268,8 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       vocoderRingOscillatorRef.current = vocoderRingOscillatorNode
       monitorDestinationRef.current = monitorDestination
       smoothedMonitorLevelRef.current = 0
+      smoothedTremoloDepthRef.current = 0
+      smoothedTremoloRateRef.current = DEFAULT_TREMOLO_RATE_HZ
       setMicOn(true)
       await refreshAudioInputs()
       setStatus('Mic on (monitoring live audio)')
@@ -308,9 +318,21 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     if (!audioContext || !tremoloGainNode || !tremoloDepthGainNode) return
 
     const clampedDepth = Math.max(0, Math.min(1, depth))
+    const smoothedDepth =
+      smoothedTremoloDepthRef.current
+      + TREMOLO_DEPTH_SMOOTHING * (clampedDepth - smoothedTremoloDepthRef.current)
+    smoothedTremoloDepthRef.current = smoothedDepth
     const now = audioContext.currentTime
-    tremoloGainNode.gain.setTargetAtTime(1 - clampedDepth * TREMOLO_INTENSITY, now, 0.04)
-    tremoloDepthGainNode.gain.setTargetAtTime(clampedDepth * TREMOLO_INTENSITY, now, 0.04)
+    tremoloGainNode.gain.setTargetAtTime(
+      1 - smoothedDepth * TREMOLO_INTENSITY,
+      now,
+      TREMOLO_DEPTH_TIME_CONSTANT,
+    )
+    tremoloDepthGainNode.gain.setTargetAtTime(
+      smoothedDepth * TREMOLO_INTENSITY,
+      now,
+      TREMOLO_DEPTH_TIME_CONSTANT,
+    )
   }, [])
 
   const setTremoloRate = useCallback((rateHz: number) => {
@@ -319,7 +341,15 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     if (!audioContext || !tremoloOscillatorNode) return
 
     const clampedRate = Math.max(MIN_TREMOLO_RATE_HZ, Math.min(MAX_TREMOLO_RATE_HZ, rateHz))
-    tremoloOscillatorNode.frequency.setTargetAtTime(clampedRate, audioContext.currentTime, 0.05)
+    const smoothedRate =
+      smoothedTremoloRateRef.current
+      + TREMOLO_RATE_SMOOTHING * (clampedRate - smoothedTremoloRateRef.current)
+    smoothedTremoloRateRef.current = smoothedRate
+    tremoloOscillatorNode.frequency.setTargetAtTime(
+      smoothedRate,
+      audioContext.currentTime,
+      TREMOLO_RATE_TIME_CONSTANT,
+    )
   }, [])
 
   const setVocoderEnabled = useCallback((enabled: boolean) => {
