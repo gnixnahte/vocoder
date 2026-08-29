@@ -4,6 +4,7 @@ import { CAMERA_HEIGHT, CAMERA_WIDTH } from '../cameraConfig'
 type UseCameraPipelineArgs = {
   apiUrl: string
   fps: number
+  processingEnabled: boolean
   detectHands: (video: HTMLVideoElement) => void
   clearOverlay: () => void
   setStatus: (value: string) => void
@@ -12,6 +13,7 @@ type UseCameraPipelineArgs = {
 export function useCameraPipeline({
   apiUrl,
   fps,
+  processingEnabled,
   detectHands,
   clearOverlay,
   setStatus,
@@ -20,6 +22,7 @@ export function useCameraPipeline({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const timerRef = useRef<number | null>(null)
   const frameRequestInFlightRef = useRef(false)
+  const frameRequestControllerRef = useRef<AbortController | null>(null)
   const detectionFrameRef = useRef<number | null>(null)
   const detectionUsesVideoFrameCallbackRef = useRef(false)
   const detectHandsRef = useRef(detectHands)
@@ -36,6 +39,7 @@ export function useCameraPipeline({
       window.clearInterval(timerRef.current)
       timerRef.current = null
     }
+    frameRequestControllerRef.current?.abort()
   }, [])
 
   const stopDetectionLoop = useCallback(() => {
@@ -115,7 +119,9 @@ export function useCameraPipeline({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    const requestController = new AbortController()
     frameRequestInFlightRef.current = true
+    frameRequestControllerRef.current = requestController
     try {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
@@ -127,7 +133,11 @@ export function useCameraPipeline({
       const formData = new FormData()
       formData.append('frame', blob, 'frame.jpg')
 
-      const response = await fetch(apiUrl, { method: 'POST', body: formData })
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData,
+        signal: requestController.signal,
+      })
       if (!response.ok) {
         setStatus(`Backend error: ${response.status}`)
         return
@@ -140,11 +150,15 @@ export function useCameraPipeline({
       })
       setStatus('Processing frames')
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
       setStatus(
         `MediaPipe running. Backend offline: ${error instanceof Error ? error.message : 'unknown error'}`,
       )
     } finally {
-      frameRequestInFlightRef.current = false
+      if (frameRequestControllerRef.current === requestController) {
+        frameRequestControllerRef.current = null
+        frameRequestInFlightRef.current = false
+      }
     }
   }, [apiUrl, setStatus])
 
@@ -159,10 +173,10 @@ export function useCameraPipeline({
   }, [fps, sendFrame, setStatus, stopLoop])
 
   useEffect(() => {
-    if (!cameraOn) return
+    if (!cameraOn || !processingEnabled) return
     startLoop()
     return stopLoop
-  }, [cameraOn, startLoop, stopLoop])
+  }, [cameraOn, processingEnabled, startLoop, stopLoop])
 
   useEffect(() => {
     return () => {

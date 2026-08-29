@@ -53,6 +53,50 @@ const resetStableBoolean = (state: StableBoolean) => {
   state.candidateFrames = 0
 }
 
+type HandTrackingState = {
+  handsCount: number
+  handHeight: number
+  leftHandHeight: number
+  singleHandPinchMix: number
+  isOpenPalmForward: boolean
+  isFistForward: boolean
+  isFistSide: boolean
+  isFistSideLeft: boolean
+  isFistSideRight: boolean
+  leftHandFistForward: boolean
+  rightHandClosedFist: boolean
+  pinkyUpClosed: boolean
+  rightPinkyUpClosed: boolean
+  singleHandPinkyUpClosed: boolean
+  singleHandFistForward: boolean
+  leftHandRotation: number
+  singleHandRotation: number
+  leftHandForwardTilt: number
+  singleHandForwardTilt: number
+}
+
+const INITIAL_HAND_TRACKING_STATE: HandTrackingState = {
+  handsCount: 0,
+  handHeight: 0,
+  leftHandHeight: 0,
+  singleHandPinchMix: 0,
+  isOpenPalmForward: false,
+  isFistForward: false,
+  isFistSide: false,
+  isFistSideLeft: false,
+  isFistSideRight: false,
+  leftHandFistForward: false,
+  rightHandClosedFist: false,
+  pinkyUpClosed: false,
+  rightPinkyUpClosed: false,
+  singleHandPinkyUpClosed: false,
+  singleHandFistForward: false,
+  leftHandRotation: 0,
+  singleHandRotation: 0,
+  leftHandForwardTilt: 0,
+  singleHandForwardTilt: 0,
+}
+
 const distance3 = (a: LandmarkPoint, b: LandmarkPoint) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
@@ -287,25 +331,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const lastGestureStatusRef = useRef('')
   const singleHandPinchMinRef = useRef(0.25)
   const singleHandPinchMaxRef = useRef(0.85)
-  const [handsCount, setHandsCount] = useState(0)
-  const [handHeight, setHandHeight] = useState(0)
-  const [leftHandHeight, setLeftHandHeight] = useState(0)
-  const [singleHandPinchMix, setSingleHandPinchMix] = useState(0)
-  const [isOpenPalmForward, setIsOpenPalmForward] = useState(false)
-  const [isFistForward, setIsFistForward] = useState(false)
-  const [isFistSide, setIsFistSide] = useState(false)
-  const [isFistSideLeft, setIsFistSideLeft] = useState(false)
-  const [isFistSideRight, setIsFistSideRight] = useState(false)
-  const [leftHandFistForward, setLeftHandFistForward] = useState(false)
-  const [rightHandClosedFist, setRightHandClosedFist] = useState(false)
-  const [pinkyUpClosed, setPinkyUpClosed] = useState(false)
-  const [rightPinkyUpClosed, setRightPinkyUpClosed] = useState(false)
-  const [singleHandPinkyUpClosed, setSingleHandPinkyUpClosed] = useState(false)
-  const [singleHandFistForward, setSingleHandFistForward] = useState(false)
-  const [leftHandRotation, setLeftHandRotation] = useState(0)
-  const [singleHandRotation, setSingleHandRotation] = useState(0)
-  const [leftHandForwardTilt, setLeftHandForwardTilt] = useState(0)
-  const [singleHandForwardTilt, setSingleHandForwardTilt] = useState(0)
+  const [trackingState, setTrackingState] = useState<HandTrackingState>(
+    INITIAL_HAND_TRACKING_STATE,
+  )
   const stableGestureRef = useRef<GestureLabel>('none')
   const gestureCandidateRef = useRef<GestureLabel>('none')
   const candidateFramesRef = useRef(0)
@@ -334,8 +362,6 @@ export function useHandTracking(setStatus: (value: string) => void) {
       overlayCanvas,
       performance.now(),
     )
-
-    setHandsCount(result.landmarks.length)
 
     const rightHandIndex = result.handedness.findIndex((entry) => {
       const label = entry[0]?.categoryName?.toLowerCase()
@@ -395,13 +421,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     }
 
     const stableGesture = stableGestureRef.current
-    setIsOpenPalmForward(stableGesture === 'open_palm_forward')
-    setIsFistForward(stableGesture === 'fist_forward')
-    setIsFistSide(stableGesture === 'fist_side')
-    setPinkyUpClosed(shape.isPinkyUpClosed)
     const stableSideDirection = stableGesture === 'fist_side' ? shape.sideDirection : 'none'
-    setIsFistSideLeft(stableSideDirection === 'left')
-    setIsFistSideRight(stableSideDirection === 'right')
 
     const gestureStatus = stableGesture === 'fist_side'
       ? 'Gesture: Fist Side'
@@ -422,22 +442,24 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const activeHandHeight = result.landmarks.length === 1
       ? primaryHandHeight
       : rightHandHeight
-    setHandHeight(activeHandHeight)
-    setLeftHandHeight(nextLeftHandHeight)
     const leftShape = leftHand ? analyzeHandShape(leftHand) : null
     const rightHand = rightHandIndex >= 0 ? (result.landmarks[rightHandIndex] as LandmarkPoint[]) : undefined
     const rightShape = rightHand ? analyzeHandShape(rightHand) : null
-    setLeftHandFistForward(updateStableBoolean(
+    const nextLeftHandFistForward = updateStableBoolean(
       leftHandFistForwardStableRef.current,
       Boolean(leftShape?.isFistForward),
-    ))
-    setRightHandClosedFist(updateStableBoolean(
+    )
+    const nextRightHandClosedFist = updateStableBoolean(
       rightHandClosedFistStableRef.current,
       Boolean(rightShape?.isFistForward || rightShape?.isFistSide),
-    ))
-    setRightPinkyUpClosed(Boolean(rightShape?.isPinkyUpClosed))
-    setLeftHandRotation(leftHand ? handRotationAmount(leftHand) : 0)
-    setLeftHandForwardTilt(leftHand ? handForwardTiltAmount(leftHand) : 0)
+    )
+    const nextLeftHandRotation = leftHand ? handRotationAmount(leftHand) : 0
+    const nextLeftHandForwardTilt = leftHand ? handForwardTiltAmount(leftHand) : 0
+    let nextSingleHandPinchMix = 0
+    let nextSingleHandPinkyUpClosed: boolean
+    let nextSingleHandFistForward: boolean
+    let nextSingleHandRotation = 0
+    let nextSingleHandForwardTilt = 0
 
     if (result.landmarks.length === 1) {
       const singleHand = result.landmarks[0]
@@ -481,31 +503,49 @@ export function useHandTracking(setStatus: (value: string) => void) {
       const mappedPinch = (normalizedPinch - dynamicMin) / dynamicRange
       const clampedPinch = Math.max(0, Math.min(1, mappedPinch))
       const curvedPinch = Math.pow(clampedPinch, 0.8)
-      const pinchMix = curvedPinch >= 0.85 ? 1 : curvedPinch <= 0.06 ? 0 : curvedPinch
-      setSingleHandPinchMix(pinchMix)
-      setSingleHandPinkyUpClosed(updateStableBoolean(
+      nextSingleHandPinchMix = curvedPinch >= 0.85 ? 1 : curvedPinch <= 0.06 ? 0 : curvedPinch
+      nextSingleHandPinkyUpClosed = updateStableBoolean(
         singleHandPinkyUpClosedStableRef.current,
         singleShape.isPinkyUpClosed,
-      ))
-      setSingleHandFistForward(updateStableBoolean(
+      )
+      nextSingleHandFistForward = updateStableBoolean(
         singleHandFistForwardStableRef.current,
         singleShape.isFistForward,
-      ))
-      setSingleHandRotation(handRotationAmount(singleHand as LandmarkPoint[]))
-      setSingleHandForwardTilt(handForwardTiltAmount(singleHand as LandmarkPoint[]))
+      )
+      nextSingleHandRotation = handRotationAmount(singleHand as LandmarkPoint[])
+      nextSingleHandForwardTilt = handForwardTiltAmount(singleHand as LandmarkPoint[])
     } else {
-      setSingleHandPinchMix(0)
-      setSingleHandPinkyUpClosed(updateStableBoolean(
+      nextSingleHandPinkyUpClosed = updateStableBoolean(
         singleHandPinkyUpClosedStableRef.current,
         false,
-      ))
-      setSingleHandFistForward(updateStableBoolean(
+      )
+      nextSingleHandFistForward = updateStableBoolean(
         singleHandFistForwardStableRef.current,
         false,
-      ))
-      setSingleHandRotation(0)
-      setSingleHandForwardTilt(0)
+      )
     }
+
+    setTrackingState({
+      handsCount: result.landmarks.length,
+      handHeight: activeHandHeight,
+      leftHandHeight: nextLeftHandHeight,
+      singleHandPinchMix: nextSingleHandPinchMix,
+      isOpenPalmForward: stableGesture === 'open_palm_forward',
+      isFistForward: stableGesture === 'fist_forward',
+      isFistSide: stableGesture === 'fist_side',
+      isFistSideLeft: stableSideDirection === 'left',
+      isFistSideRight: stableSideDirection === 'right',
+      leftHandFistForward: nextLeftHandFistForward,
+      rightHandClosedFist: nextRightHandClosedFist,
+      pinkyUpClosed: shape.isPinkyUpClosed,
+      rightPinkyUpClosed: Boolean(rightShape?.isPinkyUpClosed),
+      singleHandPinkyUpClosed: nextSingleHandPinkyUpClosed,
+      singleHandFistForward: nextSingleHandFistForward,
+      leftHandRotation: nextLeftHandRotation,
+      singleHandRotation: nextSingleHandRotation,
+      leftHandForwardTilt: nextLeftHandForwardTilt,
+      singleHandForwardTilt: nextSingleHandForwardTilt,
+    })
 
     overlayCtx.strokeStyle = '#ff2d2d'
     overlayCtx.lineWidth = 2
@@ -538,25 +578,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
     if (overlayCtx && overlayCanvasRef.current) {
       overlayCtx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height)
     }
-    setHandsCount(0)
-    setHandHeight(0)
-    setLeftHandHeight(0)
-    setSingleHandPinchMix(0)
-    setIsOpenPalmForward(false)
-    setIsFistForward(false)
-    setIsFistSide(false)
-    setIsFistSideLeft(false)
-    setIsFistSideRight(false)
-    setLeftHandFistForward(false)
-    setRightHandClosedFist(false)
-    setPinkyUpClosed(false)
-    setRightPinkyUpClosed(false)
-    setSingleHandPinkyUpClosed(false)
-    setSingleHandFistForward(false)
-    setLeftHandRotation(0)
-    setSingleHandRotation(0)
-    setLeftHandForwardTilt(0)
-    setSingleHandForwardTilt(0)
+    setTrackingState(INITIAL_HAND_TRACKING_STATE)
     stableGestureRef.current = 'none'
     gestureCandidateRef.current = 'none'
     candidateFramesRef.current = 0
@@ -606,28 +628,10 @@ export function useHandTracking(setStatus: (value: string) => void) {
     }
   }, [setStatus])
 
-  return { 
+  return {
     overlayCanvasRef,
-    detectHands, 
-    clearOverlay, 
-    handsCount,
-    handHeight,
-    leftHandHeight,
-    singleHandPinchMix,
-    isOpenPalmForward,
-    isFistForward,
-    isFistSide,
-    isFistSideLeft,
-    isFistSideRight,
-    leftHandFistForward,
-    rightHandClosedFist,
-    pinkyUpClosed,
-    rightPinkyUpClosed,
-    singleHandPinkyUpClosed,
-    singleHandFistForward,
-    leftHandRotation,
-    singleHandRotation,
-    leftHandForwardTilt,
-    singleHandForwardTilt,
+    detectHands,
+    clearOverlay,
+    ...trackingState,
   }
 }

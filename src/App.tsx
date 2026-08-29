@@ -63,6 +63,7 @@ function App() {
   } = useCameraPipeline({
     apiUrl,
     fps,
+    processingEnabled: viewMode !== 'raw',
     detectHands,
     clearOverlay,
     setStatus,
