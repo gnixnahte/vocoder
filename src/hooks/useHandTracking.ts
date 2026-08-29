@@ -65,8 +65,6 @@ type HandTrackingState = {
   isFistSideRight: boolean
   leftHandFistForward: boolean
   rightHandClosedFist: boolean
-  pinkyUpClosed: boolean
-  rightPinkyUpClosed: boolean
   singleHandPinkyUpClosed: boolean
   singleHandFistForward: boolean
   leftHandRotation: number
@@ -87,8 +85,6 @@ const INITIAL_HAND_TRACKING_STATE: HandTrackingState = {
   isFistSideRight: false,
   leftHandFistForward: false,
   rightHandClosedFist: false,
-  pinkyUpClosed: false,
-  rightPinkyUpClosed: false,
   singleHandPinkyUpClosed: false,
   singleHandFistForward: false,
   leftHandRotation: 0,
@@ -372,12 +368,19 @@ export function useHandTracking(setStatus: (value: string) => void) {
       return label === 'left'
     })
 
+    const analyzedHands = result.landmarks.map((hand) =>
+      analyzeHandShape(hand as LandmarkPoint[]))
     const rightWrist = rightHandIndex >= 0 ? result.landmarks[rightHandIndex]?.[0] : undefined
     const leftWrist = leftHandIndex >= 0 ? result.landmarks[leftHandIndex]?.[0] : undefined
     const leftHand = leftHandIndex >= 0 ? (result.landmarks[leftHandIndex] as LandmarkPoint[]) : undefined
-    const primaryHand = result.landmarks[0] as LandmarkPoint[] | undefined
+    const primaryHandIndex = rightHandIndex >= 0
+      ? rightHandIndex
+      : leftHandIndex >= 0
+        ? leftHandIndex
+        : 0
+    const primaryHand = result.landmarks[primaryHandIndex] as LandmarkPoint[] | undefined
     const shape: ReturnType<typeof analyzeHandShape> = primaryHand
-      ? analyzeHandShape(primaryHand)
+      ? analyzedHands[primaryHandIndex]
       : {
         isOpenPalmForward: false,
         isFistForward: false,
@@ -437,14 +440,13 @@ export function useHandTracking(setStatus: (value: string) => void) {
 
     const rightHandHeight = rightWrist ? Math.max(0, Math.min(1, 1 - rightWrist.y)) : 0
     const nextLeftHandHeight = leftWrist ? Math.max(0, Math.min(1, 1 - leftWrist.y)) : 0
-    const primaryWrist = result.landmarks[0]?.[0]
+    const primaryWrist = primaryHand?.[0]
     const primaryHandHeight = primaryWrist ? Math.max(0, Math.min(1, 1 - primaryWrist.y)) : 0
     const activeHandHeight = result.landmarks.length === 1
       ? primaryHandHeight
       : rightHandHeight
-    const leftShape = leftHand ? analyzeHandShape(leftHand) : null
-    const rightHand = rightHandIndex >= 0 ? (result.landmarks[rightHandIndex] as LandmarkPoint[]) : undefined
-    const rightShape = rightHand ? analyzeHandShape(rightHand) : null
+    const leftShape = leftHandIndex >= 0 ? analyzedHands[leftHandIndex] : null
+    const rightShape = rightHandIndex >= 0 ? analyzedHands[rightHandIndex] : null
     const nextLeftHandFistForward = updateStableBoolean(
       leftHandFistForwardStableRef.current,
       Boolean(leftShape?.isFistForward),
@@ -463,7 +465,7 @@ export function useHandTracking(setStatus: (value: string) => void) {
 
     if (result.landmarks.length === 1) {
       const singleHand = result.landmarks[0]
-      const singleShape = analyzeHandShape(singleHand as LandmarkPoint[])
+      const singleShape = analyzedHands[0]
       const thumbTip = singleHand?.[4]
       const indexTip = singleHand?.[8]
       const indexMcp = singleHand?.[5]
@@ -537,8 +539,6 @@ export function useHandTracking(setStatus: (value: string) => void) {
       isFistSideRight: stableSideDirection === 'right',
       leftHandFistForward: nextLeftHandFistForward,
       rightHandClosedFist: nextRightHandClosedFist,
-      pinkyUpClosed: shape.isPinkyUpClosed,
-      rightPinkyUpClosed: Boolean(rightShape?.isPinkyUpClosed),
       singleHandPinkyUpClosed: nextSingleHandPinkyUpClosed,
       singleHandFistForward: nextSingleHandFistForward,
       leftHandRotation: nextLeftHandRotation,

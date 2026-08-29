@@ -26,6 +26,7 @@ export function useCameraPipeline({
   const detectionFrameRef = useRef<number | null>(null)
   const detectionUsesVideoFrameCallbackRef = useRef(false)
   const detectHandsRef = useRef(detectHands)
+  const lastPipelineStatusRef = useRef('')
 
   const [cameraOn, setCameraOn] = useState(false)
   const [processedSrc, setProcessedSrc] = useState('')
@@ -33,6 +34,12 @@ export function useCameraPipeline({
   useEffect(() => {
     detectHandsRef.current = detectHands
   }, [detectHands])
+
+  const updatePipelineStatus = useCallback((value: string) => {
+    if (lastPipelineStatusRef.current === value) return
+    lastPipelineStatusRef.current = value
+    setStatus(value)
+  }, [setStatus])
 
   const stopLoop = useCallback(() => {
     if (timerRef.current !== null) {
@@ -105,11 +112,13 @@ export function useCameraPipeline({
       await videoRef.current.play()
       startDetectionLoop(videoRef.current)
       setCameraOn(true)
-      setStatus('Camera started. Processing...')
+      updatePipelineStatus('Camera started')
     } catch (error) {
-      setStatus(`Camera error: ${error instanceof Error ? error.message : 'unknown error'}`)
+      updatePipelineStatus(
+        `Camera error: ${error instanceof Error ? error.message : 'unknown error'}`,
+      )
     }
-  }, [setStatus, startDetectionLoop])
+  }, [startDetectionLoop, updatePipelineStatus])
 
   const sendFrame = useCallback(async () => {
     const video = videoRef.current
@@ -139,7 +148,7 @@ export function useCameraPipeline({
         signal: requestController.signal,
       })
       if (!response.ok) {
-        setStatus(`Backend error: ${response.status}`)
+        updatePipelineStatus(`Backend error: ${response.status}`)
         return
       }
       const outBlob = await response.blob()
@@ -149,10 +158,10 @@ export function useCameraPipeline({
         if (prev) URL.revokeObjectURL(prev)
         return nextUrl
       })
-      setStatus('Processing frames')
+      updatePipelineStatus('Processing frames')
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
-      setStatus(
+      updatePipelineStatus(
         `MediaPipe running. Backend offline: ${error instanceof Error ? error.message : 'unknown error'}`,
       )
     } finally {
@@ -161,7 +170,7 @@ export function useCameraPipeline({
         frameRequestInFlightRef.current = false
       }
     }
-  }, [apiUrl, setStatus])
+  }, [apiUrl, updatePipelineStatus])
 
   const startLoop = useCallback(() => {
     const clampedFps = Math.min(30, Math.max(1, fps))
@@ -170,8 +179,8 @@ export function useCameraPipeline({
     timerRef.current = window.setInterval(() => {
       void sendFrame()
     }, intervalMs)
-    setStatus('Sending frames')
-  }, [fps, sendFrame, setStatus, stopLoop])
+    updatePipelineStatus('Sending frames')
+  }, [fps, sendFrame, stopLoop, updatePipelineStatus])
 
   useEffect(() => {
     if (!cameraOn || !processingEnabled) return

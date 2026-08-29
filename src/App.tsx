@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import lamejs from 'lamejs'
 import './App.css'
 import { CAMERA_ASPECT_RATIO, CAMERA_HEIGHT, CAMERA_WIDTH } from './cameraConfig'
 import { ControlsPanel } from './components/ControlsPanel'
@@ -289,7 +288,8 @@ function App() {
         samples[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
       }
 
-      const encoder = new lamejs.Mp3Encoder(1, sampleRate, 128)
+      const { Mp3Encoder } = await import('lamejs')
+      const encoder = new Mp3Encoder(1, sampleRate, 128)
       const mp3Chunks: BlobPart[] = []
       const blockSize = 1152
       for (let i = 0; i < samples.length; i += blockSize) {
@@ -321,7 +321,7 @@ function App() {
     <main style={{ padding: '24px', textAlign: 'left' }}>
       <h1 style={{ marginBottom: '12px' }}>Camera + OpenCV Bridge</h1>
       <p style={{ marginBottom: '20px' }}>
-        Start camera and frames will stream to your OpenCV backend automatically.
+        Hand tracking runs locally. Split and processed views also stream frames to OpenCV.
       </p>
 
       <ControlsPanel
