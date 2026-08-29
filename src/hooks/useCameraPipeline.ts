@@ -143,6 +143,7 @@ export function useCameraPipeline({
         return
       }
       const outBlob = await response.blob()
+      if (requestController.signal.aborted) return
       const nextUrl = URL.createObjectURL(outBlob)
       setProcessedSrc((prev) => {
         if (prev) URL.revokeObjectURL(prev)
