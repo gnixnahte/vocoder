@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FilesetResolver,
   HandLandmarker,
@@ -17,6 +17,41 @@ const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
 type LandmarkPoint = { x: number; y: number; z: number }
 type GestureLabel = 'none' | 'open_palm_forward' | 'fist_forward' | 'fist_side'
 type SideDirection = 'none' | 'left' | 'right'
+type StableBoolean = {
+  value: boolean
+  candidate: boolean
+  candidateFrames: number
+}
+
+const createStableBoolean = (): StableBoolean => ({
+  value: false,
+  candidate: false,
+  candidateFrames: 0,
+})
+
+const updateStableBoolean = (
+  state: StableBoolean,
+  nextValue: boolean,
+  framesToSwitch = 3,
+) => {
+  if (state.candidate === nextValue) {
+    state.candidateFrames += 1
+  } else {
+    state.candidate = nextValue
+    state.candidateFrames = 1
+  }
+
+  if (state.value !== state.candidate && state.candidateFrames >= framesToSwitch) {
+    state.value = state.candidate
+  }
+  return state.value
+}
+
+const resetStableBoolean = (state: StableBoolean) => {
+  state.value = false
+  state.candidate = false
+  state.candidateFrames = 0
+}
 
 const distance3 = (a: LandmarkPoint, b: LandmarkPoint) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
@@ -274,8 +309,12 @@ export function useHandTracking(setStatus: (value: string) => void) {
   const stableGestureRef = useRef<GestureLabel>('none')
   const gestureCandidateRef = useRef<GestureLabel>('none')
   const candidateFramesRef = useRef(0)
+  const leftHandFistForwardStableRef = useRef(createStableBoolean())
+  const rightHandClosedFistStableRef = useRef(createStableBoolean())
+  const singleHandPinkyUpClosedStableRef = useRef(createStableBoolean())
+  const singleHandFistForwardStableRef = useRef(createStableBoolean())
 
-  const detectHands = (video: HTMLVideoElement) => {
+  const detectHands = useCallback((video: HTMLVideoElement) => {
     const handLandmarker = handLandmarkerRef.current
     const overlayCanvas = overlayCanvasRef.current
     if (!overlayCanvas || !video.videoWidth || !video.videoHeight) return
@@ -388,8 +427,14 @@ export function useHandTracking(setStatus: (value: string) => void) {
     const leftShape = leftHand ? analyzeHandShape(leftHand) : null
     const rightHand = rightHandIndex >= 0 ? (result.landmarks[rightHandIndex] as LandmarkPoint[]) : undefined
     const rightShape = rightHand ? analyzeHandShape(rightHand) : null
-    setLeftHandFistForward(Boolean(leftShape?.isFistForward))
-    setRightHandClosedFist(Boolean(rightShape?.isFistForward || rightShape?.isFistSide))
+    setLeftHandFistForward(updateStableBoolean(
+      leftHandFistForwardStableRef.current,
+      Boolean(leftShape?.isFistForward),
+    ))
+    setRightHandClosedFist(updateStableBoolean(
+      rightHandClosedFistStableRef.current,
+      Boolean(rightShape?.isFistForward || rightShape?.isFistSide),
+    ))
     setRightPinkyUpClosed(Boolean(rightShape?.isPinkyUpClosed))
     setLeftHandRotation(leftHand ? handRotationAmount(leftHand) : 0)
     setLeftHandForwardTilt(leftHand ? handForwardTiltAmount(leftHand) : 0)
@@ -438,14 +483,26 @@ export function useHandTracking(setStatus: (value: string) => void) {
       const curvedPinch = Math.pow(clampedPinch, 0.8)
       const pinchMix = curvedPinch >= 0.85 ? 1 : curvedPinch <= 0.06 ? 0 : curvedPinch
       setSingleHandPinchMix(pinchMix)
-      setSingleHandPinkyUpClosed(singleShape.isPinkyUpClosed)
-      setSingleHandFistForward(singleShape.isFistForward)
+      setSingleHandPinkyUpClosed(updateStableBoolean(
+        singleHandPinkyUpClosedStableRef.current,
+        singleShape.isPinkyUpClosed,
+      ))
+      setSingleHandFistForward(updateStableBoolean(
+        singleHandFistForwardStableRef.current,
+        singleShape.isFistForward,
+      ))
       setSingleHandRotation(handRotationAmount(singleHand as LandmarkPoint[]))
       setSingleHandForwardTilt(handForwardTiltAmount(singleHand as LandmarkPoint[]))
     } else {
       setSingleHandPinchMix(0)
-      setSingleHandPinkyUpClosed(false)
-      setSingleHandFistForward(false)
+      setSingleHandPinkyUpClosed(updateStableBoolean(
+        singleHandPinkyUpClosedStableRef.current,
+        false,
+      ))
+      setSingleHandFistForward(updateStableBoolean(
+        singleHandFistForwardStableRef.current,
+        false,
+      ))
       setSingleHandRotation(0)
       setSingleHandForwardTilt(0)
     }
@@ -474,9 +531,9 @@ export function useHandTracking(setStatus: (value: string) => void) {
         overlayCtx.fill()
       }
     }
-  }
+  }, [setStatus])
 
-  const clearOverlay = () => {
+  const clearOverlay = useCallback(() => {
     const overlayCtx = overlayCanvasRef.current?.getContext('2d')
     if (overlayCtx && overlayCanvasRef.current) {
       overlayCtx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height)
@@ -506,14 +563,18 @@ export function useHandTracking(setStatus: (value: string) => void) {
     lastGestureStatusRef.current = ''
     singleHandPinchMinRef.current = 0.25
     singleHandPinchMaxRef.current = 0.85
-  }
+    resetStableBoolean(leftHandFistForwardStableRef.current)
+    resetStableBoolean(rightHandClosedFistStableRef.current)
+    resetStableBoolean(singleHandPinkyUpClosedStableRef.current)
+    resetStableBoolean(singleHandFistForwardStableRef.current)
+  }, [])
 
   useEffect(() => {
     let isMounted = true
     const initHands = async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
         )
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {

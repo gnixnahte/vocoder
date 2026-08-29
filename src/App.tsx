@@ -18,8 +18,6 @@ function App() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
   const [fps, setFps] = useState(8)
   const [status, setStatus] = useState('Idle')
-  const [monitorLevel, setMonitorLevelState] = useState(0)
-  const [reverbMix, setReverbMixState] = useState(0)
   const [isRecording, setIsRecording] = useState(false)
   const [recordedSrc, setRecordedSrc] = useState('')
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
@@ -85,38 +83,23 @@ function App() {
     getMonitorStream,
   } = useMicMonitor({ setStatus })
 
-  useEffect(() => {
-    if (handHeight <= 0) {
-      setMonitorLevel(0)
-      setMonitorLevelState(0)
-      return
-    }
-    const shapedLevel = Math.min(2, Math.pow(handHeight, 1.8) * 2)
-    setMonitorLevel(shapedLevel)
-    setMonitorLevelState(shapedLevel)
-  }, [handHeight, setMonitorLevel])
+  const monitorLevel = handHeight <= 0
+    ? 0
+    : Math.min(2, Math.pow(handHeight, 1.8) * 2)
+  const reverbMix = handsCount === 1 ? singleHandPinchMix : leftHandHeight
 
   useEffect(() => {
-    const activeReverbMix = handsCount === 1 ? singleHandPinchMix : leftHandHeight
-    setReverbMix(activeReverbMix)
-    setReverbMixState(activeReverbMix)
-  }, [handsCount, leftHandHeight, setReverbMix, singleHandPinchMix])
+    setMonitorLevel(monitorLevel)
+  }, [monitorLevel, setMonitorLevel])
 
   useEffect(() => {
-    let gestureDepth = 0
+    setReverbMix(reverbMix)
+  }, [reverbMix, setReverbMix])
 
-    if (handsCount === 1) {
-      // One-hand mode: only allow tremolo when the hand is a forward-facing fist.
-      gestureDepth = singleHandFistForward ? singleHandRotation : 0
-    } else {
-      // Two-hand mode (or any non-one-hand case):
-      // only allow tremolo when the left hand is a forward fist.
-      if (leftHandFistForward) {
-        gestureDepth = leftHandRotation
-      } else {
-        gestureDepth = 0
-      }
-    }
+  useEffect(() => {
+    const gestureDepth = handsCount === 1
+      ? (singleHandFistForward ? singleHandRotation : 0)
+      : (leftHandFistForward ? leftHandRotation : 0)
 
     const tremoloDepth = DEFAULT_TREMOLO_DEPTH + gestureDepth * (1 - DEFAULT_TREMOLO_DEPTH)
     setTremoloDepth(tremoloDepth)
@@ -400,15 +383,15 @@ function App() {
             gridTemplateColumns: viewMode === 'split' ? '1fr 1fr' : '1fr',
           }}
         >
-          {viewMode !== 'processed' ? (
-            <div
-              style={{
-                position: 'relative',
-                alignSelf: 'start',
-                width: '100%',
-                transform: 'scaleX(-1)',
-              }}
-            >
+          <div
+            style={{
+              display: viewMode === 'processed' ? 'none' : 'block',
+              position: 'relative',
+              alignSelf: 'start',
+              width: '100%',
+              transform: 'scaleX(-1)',
+            }}
+          >
               <video
                 ref={videoRef}
                 autoPlay
@@ -473,8 +456,7 @@ function App() {
                 leftHandForwardTilt={leftHandForwardTilt}
                 singleHandForwardTilt={singleHandForwardTilt}
               />
-            </div>
-          ) : null}
+          </div>
           {viewMode !== 'raw' ? (
             <div
               style={{

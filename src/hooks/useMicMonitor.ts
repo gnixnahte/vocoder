@@ -47,13 +47,14 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const smoothedMonitorLevelRef = useRef(0)
   const smoothedTremoloDepthRef = useRef(0)
   const smoothedTremoloRateRef = useRef(DEFAULT_TREMOLO_RATE_HZ)
+  const micOnRef = useRef(false)
 
   const [micOn, setMicOn] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioInputId, setSelectedAudioInputId] = useState('')
   const hasSeenInitialDeviceSelectionRef = useRef(false)
 
-  const getAudioContext = () => {
+  const getAudioContext = useCallback(() => {
     if (audioContextRef.current) return audioContextRef.current
     const AudioContextCtor =
       window.AudioContext ||
@@ -66,9 +67,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     })
     audioContextRef.current = audioContext
     return audioContext
-  }
+  }, [])
 
-  const createImpulseResponse = (
+  const createImpulseResponse = useCallback((
     audioContext: AudioContext,
     seconds: number = 3.8,
     decay: number = 1.9,
@@ -83,9 +84,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       }
     }
     return impulse
-  }
+  }, [])
 
-  const fadeMicGain = (targetValue: number) => {
+  const fadeMicGain = useCallback((targetValue: number) => {
     const audioContext = audioContextRef.current
     const gainNode = micGainRef.current
     if (!audioContext || !gainNode) return
@@ -93,9 +94,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     gainNode.gain.cancelScheduledValues(now)
     gainNode.gain.setValueAtTime(gainNode.gain.value, now)
     gainNode.gain.linearRampToValueAtTime(targetValue, now + 0.03)
-  }
+  }, [])
 
-  const stopMic = () => {
+  const stopMic = useCallback(() => {
+    micOnRef.current = false
     fadeMicGain(0)
     window.setTimeout(() => {
       micSourceRef.current?.disconnect()
@@ -136,9 +138,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       setMicOn(false)
       setStatus('Mic off')
     }, 50)
-  }
+  }, [fadeMicGain, setStatus])
 
-  const refreshAudioInputs = async () => {
+  const refreshAudioInputs = useCallback(async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       const nextInputs = devices.filter((device) => device.kind === 'audioinput')
@@ -155,9 +157,9 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
         `Device list error: ${error instanceof Error ? error.message : 'unknown error'}`,
       )
     }
-  }
+  }, [setStatus])
 
-  const startMic = async (deviceId?: string) => {
+  const startMic = useCallback(async (deviceId?: string) => {
     try {
       const audioContext = getAudioContext()
       if (audioContext.state === 'suspended') {
@@ -270,6 +272,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       smoothedMonitorLevelRef.current = 0
       smoothedTremoloDepthRef.current = 0
       smoothedTremoloRateRef.current = DEFAULT_TREMOLO_RATE_HZ
+      micOnRef.current = true
       setMicOn(true)
       await refreshAudioInputs()
       setStatus('Mic on (monitoring live audio)')
@@ -277,15 +280,15 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     } catch (error) {
       setStatus(`Mic error: ${error instanceof Error ? error.message : 'unknown error'}`)
     }
-  }
+  }, [createImpulseResponse, fadeMicGain, getAudioContext, refreshAudioInputs, setStatus])
 
-  const toggleMic = () => {
+  const toggleMic = useCallback(() => {
     if (micOn) {
       stopMic()
       return
     }
     void startMic(selectedAudioInputId)
-  }
+  }, [micOn, selectedAudioInputId, startMic, stopMic])
 
   const setMonitorLevel = useCallback((level: number) => {
     const audioContext = audioContextRef.current
@@ -374,9 +377,13 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   }, [])
 
   useEffect(() => {
-    void refreshAudioInputs()
+    const initialRefreshTimer = window.setTimeout(() => {
+      void refreshAudioInputs()
+    }, 0)
     const mediaDevices = navigator.mediaDevices
-    if (!mediaDevices) return
+    if (!mediaDevices) {
+      return () => window.clearTimeout(initialRefreshTimer)
+    }
 
     const handleDeviceChange = () => {
       void refreshAudioInputs()
@@ -385,22 +392,23 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     mediaDevices.addEventListener('devicechange', handleDeviceChange)
 
     return () => {
+      window.clearTimeout(initialRefreshTimer)
       mediaDevices.removeEventListener('devicechange', handleDeviceChange)
     }
-  }, [])
+  }, [refreshAudioInputs])
 
   useEffect(() => {
     if (!hasSeenInitialDeviceSelectionRef.current) {
       hasSeenInitialDeviceSelectionRef.current = true
       return
     }
-    if (!micOn) return
+    if (!micOnRef.current) return
     setStatus('Switching mic input...')
     stopMic()
     window.setTimeout(() => {
       void startMic(selectedAudioInputId)
     }, 60)
-  }, [selectedAudioInputId])
+  }, [selectedAudioInputId, setStatus, startMic, stopMic])
 
   useEffect(() => {
     return () => {
@@ -408,7 +416,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       void audioContextRef.current?.close()
       audioContextRef.current = null
     }
-  }, [])
+  }, [stopMic])
 
   return {
     micOn,

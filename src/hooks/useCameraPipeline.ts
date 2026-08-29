@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CAMERA_HEIGHT, CAMERA_WIDTH } from '../cameraConfig'
 
 type UseCameraPipelineArgs = {
@@ -19,6 +19,7 @@ export function useCameraPipeline({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const timerRef = useRef<number | null>(null)
+  const frameRequestInFlightRef = useRef(false)
   const detectionFrameRef = useRef<number | null>(null)
   const detectionUsesVideoFrameCallbackRef = useRef(false)
   const detectHandsRef = useRef(detectHands)
@@ -30,14 +31,14 @@ export function useCameraPipeline({
     detectHandsRef.current = detectHands
   }, [detectHands])
 
-  const stopLoop = () => {
+  const stopLoop = useCallback(() => {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current)
       timerRef.current = null
     }
-  }
+  }, [])
 
-  const stopDetectionLoop = () => {
+  const stopDetectionLoop = useCallback(() => {
     const frameId = detectionFrameRef.current
     if (frameId === null) return
 
@@ -48,9 +49,9 @@ export function useCameraPipeline({
       window.cancelAnimationFrame(frameId)
     }
     detectionFrameRef.current = null
-  }
+  }, [])
 
-  const startDetectionLoop = (video: HTMLVideoElement) => {
+  const startDetectionLoop = useCallback((video: HTMLVideoElement) => {
     stopDetectionLoop()
 
     if (video.requestVideoFrameCallback) {
@@ -73,9 +74,9 @@ export function useCameraPipeline({
       detectionFrameRef.current = window.requestAnimationFrame(detectAnimationFrame)
     }
     detectionFrameRef.current = window.requestAnimationFrame(detectAnimationFrame)
-  }
+  }, [stopDetectionLoop])
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     stopLoop()
     stopDetectionLoop()
     const video = videoRef.current
@@ -84,15 +85,18 @@ export function useCameraPipeline({
     if (video) video.srcObject = null
     clearOverlay()
     setCameraOn(false)
-  }
+  }, [clearOverlay, stopDetectionLoop, stopLoop])
 
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: CAMERA_WIDTH, height: CAMERA_HEIGHT },
         audio: false,
       })
-      if (!videoRef.current) return
+      if (!videoRef.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
       videoRef.current.srcObject = stream
       await videoRef.current.play()
       startDetectionLoop(videoRef.current)
@@ -101,27 +105,28 @@ export function useCameraPipeline({
     } catch (error) {
       setStatus(`Camera error: ${error instanceof Error ? error.message : 'unknown error'}`)
     }
-  }
+  }, [setStatus, startDetectionLoop])
 
-  const sendFrame = async () => {
+  const sendFrame = useCallback(async () => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || video.readyState < 2) return
+    if (!video || !canvas || video.readyState < 2 || frameRequestInFlightRef.current) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.8)
-    })
-    if (!blob) return
-
-    const formData = new FormData()
-    formData.append('frame', blob, 'frame.jpg')
-
+    frameRequestInFlightRef.current = true
     try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.8)
+      })
+      if (!blob) return
+
+      const formData = new FormData()
+      formData.append('frame', blob, 'frame.jpg')
+
       const response = await fetch(apiUrl, { method: 'POST', body: formData })
       if (!response.ok) {
         setStatus(`Backend error: ${response.status}`)
@@ -138,10 +143,12 @@ export function useCameraPipeline({
       setStatus(
         `MediaPipe running. Backend offline: ${error instanceof Error ? error.message : 'unknown error'}`,
       )
+    } finally {
+      frameRequestInFlightRef.current = false
     }
-  }
+  }, [apiUrl, setStatus])
 
-  const startLoop = () => {
+  const startLoop = useCallback(() => {
     const clampedFps = Math.min(30, Math.max(1, fps))
     const intervalMs = Math.floor(1000 / clampedFps)
     stopLoop()
@@ -149,13 +156,13 @@ export function useCameraPipeline({
       void sendFrame()
     }, intervalMs)
     setStatus('Sending frames')
-  }
+  }, [fps, sendFrame, setStatus, stopLoop])
 
   useEffect(() => {
     if (!cameraOn) return
     startLoop()
     return stopLoop
-  }, [cameraOn, fps, apiUrl])
+  }, [cameraOn, startLoop, stopLoop])
 
   useEffect(() => {
     return () => {
@@ -165,7 +172,7 @@ export function useCameraPipeline({
         return ''
       })
     }
-  }, [])
+  }, [stopCamera])
 
   return {
     videoRef,
