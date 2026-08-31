@@ -11,6 +11,14 @@ const DEFAULT_API_URL = 'http://127.0.0.1:8000/process'
 const DEFAULT_TREMOLO_DEPTH = 0
 const BASE_TREMOLO_RATE_HZ = 8.5
 const TREMOLO_RATE_SWEEP_HZ = 5.5
+const RECORDING_MIME_TYPES = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=opus',
+  'video/webm',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4',
+]
 type ViewMode = 'raw' | 'processed' | 'split'
 
 function App() {
@@ -166,6 +174,10 @@ function App() {
       setRecordingError('Processed audio stream unavailable. Turn mic on first.')
       return
     }
+    if (typeof MediaRecorder === 'undefined') {
+      setRecordingError('Recording is not supported in this browser.')
+      return
+    }
 
     const captureStreamFn = (
       videoElement as HTMLVideoElement & {
@@ -190,9 +202,18 @@ function App() {
       ...monitorStream.getAudioTracks(),
     ])
     const chunks: BlobPart[] = []
-    const recorder = new MediaRecorder(combinedStream, {
-      mimeType: 'video/webm;codecs=vp9,opus',
-    })
+    const supportedMimeType = RECORDING_MIME_TYPES.find((mimeType) =>
+      MediaRecorder.isTypeSupported(mimeType))
+    let recorder: MediaRecorder
+    try {
+      recorder = supportedMimeType
+        ? new MediaRecorder(combinedStream, { mimeType: supportedMimeType })
+        : new MediaRecorder(combinedStream)
+    } catch {
+      combinedStream.getTracks().forEach((track) => track.stop())
+      setRecordingError('Could not initialize recording in this browser.')
+      return
+    }
 
     recorder.ondataavailable = (event: BlobEvent) => {
       if (event.data.size > 0) {
@@ -200,7 +221,9 @@ function App() {
       }
     }
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' })
+      const blob = new Blob(chunks, {
+        type: recorder.mimeType || supportedMimeType || 'video/webm',
+      })
       const nextUrl = URL.createObjectURL(blob)
       setRecordedBlob(blob)
       setRecordedSrc((prev) => {
@@ -221,11 +244,16 @@ function App() {
       combinedStream.getTracks().forEach((track) => track.stop())
     }
 
-    setRecordingError('')
-    setRecordingLabel('Recording...')
-    setIsRecording(true)
-    setMediaRecorder(recorder)
-    recorder.start(250)
+    try {
+      recorder.start(250)
+      setRecordingError('')
+      setRecordingLabel('Recording...')
+      setIsRecording(true)
+      setMediaRecorder(recorder)
+    } catch {
+      combinedStream.getTracks().forEach((track) => track.stop())
+      setRecordingError('Could not start recording in this browser.')
+    }
   }
 
   const clearCountdownTimer = () => {
