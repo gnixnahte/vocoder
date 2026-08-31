@@ -48,6 +48,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const smoothedTremoloDepthRef = useRef(0)
   const smoothedTremoloRateRef = useRef(DEFAULT_TREMOLO_RATE_HZ)
   const micOnRef = useRef(false)
+  const micStartGenerationRef = useRef(0)
+  const stopMicTimerRef = useRef<number | null>(null)
+  const restartMicTimerRef = useRef<number | null>(null)
+  const pendingMicRestartRef = useRef(false)
 
   const [micOn, setMicOn] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([])
@@ -96,49 +100,64 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
     gainNode.gain.linearRampToValueAtTime(targetValue, now + 0.03)
   }, [])
 
-  const stopMic = useCallback(() => {
+  const releaseMicResources = useCallback(() => {
+    micSourceRef.current?.disconnect()
+    dryGainRef.current?.disconnect()
+    wetGainRef.current?.disconnect()
+    convolverRef.current?.disconnect()
+    micGainRef.current?.disconnect()
+    tremoloGainRef.current?.disconnect()
+    tremoloDepthGainRef.current?.disconnect()
+    tremoloOscillatorRef.current?.disconnect()
+    tremoloOscillatorRef.current?.stop()
+    vocoderDryGainRef.current?.disconnect()
+    vocoderWetGainRef.current?.disconnect()
+    vocoderRingModGainRef.current?.disconnect()
+    vocoderRingDepthGainRef.current?.disconnect()
+    vocoderRingOscillatorRef.current?.disconnect()
+    vocoderRingOscillatorRef.current?.stop()
+    monitorDestinationRef.current?.disconnect()
+    micStreamRef.current?.getTracks().forEach((track) => track.stop())
+    micSourceRef.current = null
+    dryGainRef.current = null
+    wetGainRef.current = null
+    convolverRef.current = null
+    micGainRef.current = null
+    tremoloGainRef.current = null
+    tremoloDepthGainRef.current = null
+    tremoloOscillatorRef.current = null
+    vocoderDryGainRef.current = null
+    vocoderWetGainRef.current = null
+    vocoderRingModGainRef.current = null
+    vocoderRingDepthGainRef.current = null
+    vocoderRingOscillatorRef.current = null
+    monitorDestinationRef.current = null
+    micStreamRef.current = null
+    smoothedMonitorLevelRef.current = 0
+    smoothedTremoloDepthRef.current = 0
+    smoothedTremoloRateRef.current = DEFAULT_TREMOLO_RATE_HZ
+  }, [])
+
+  const stopMic = useCallback((cancelPendingRestart = true) => {
+    micStartGenerationRef.current += 1
     micOnRef.current = false
+    if (cancelPendingRestart) {
+      pendingMicRestartRef.current = false
+      if (restartMicTimerRef.current !== null) {
+        window.clearTimeout(restartMicTimerRef.current)
+        restartMicTimerRef.current = null
+      }
+    }
     fadeMicGain(0)
-    window.setTimeout(() => {
-      micSourceRef.current?.disconnect()
-      dryGainRef.current?.disconnect()
-      wetGainRef.current?.disconnect()
-      convolverRef.current?.disconnect()
-      micGainRef.current?.disconnect()
-      tremoloGainRef.current?.disconnect()
-      tremoloDepthGainRef.current?.disconnect()
-      tremoloOscillatorRef.current?.disconnect()
-      tremoloOscillatorRef.current?.stop()
-      vocoderDryGainRef.current?.disconnect()
-      vocoderWetGainRef.current?.disconnect()
-      vocoderRingModGainRef.current?.disconnect()
-      vocoderRingDepthGainRef.current?.disconnect()
-      vocoderRingOscillatorRef.current?.disconnect()
-      vocoderRingOscillatorRef.current?.stop()
-      monitorDestinationRef.current?.disconnect()
-      micStreamRef.current?.getTracks().forEach((track) => track.stop())
-      micSourceRef.current = null
-      dryGainRef.current = null
-      wetGainRef.current = null
-      convolverRef.current = null
-      micGainRef.current = null
-      tremoloGainRef.current = null
-      tremoloDepthGainRef.current = null
-      tremoloOscillatorRef.current = null
-      vocoderDryGainRef.current = null
-      vocoderWetGainRef.current = null
-      vocoderRingModGainRef.current = null
-      vocoderRingDepthGainRef.current = null
-      vocoderRingOscillatorRef.current = null
-      monitorDestinationRef.current = null
-      micStreamRef.current = null
-      smoothedMonitorLevelRef.current = 0
-      smoothedTremoloDepthRef.current = 0
-      smoothedTremoloRateRef.current = DEFAULT_TREMOLO_RATE_HZ
+    if (stopMicTimerRef.current !== null) return
+
+    stopMicTimerRef.current = window.setTimeout(() => {
+      stopMicTimerRef.current = null
+      releaseMicResources()
       setMicOn(false)
       setStatus('Mic off')
     }, 50)
-  }, [fadeMicGain, setStatus])
+  }, [fadeMicGain, releaseMicResources, setStatus])
 
   const refreshAudioInputs = useCallback(async () => {
     try {
@@ -160,6 +179,13 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   }, [setStatus])
 
   const startMic = useCallback(async (deviceId?: string) => {
+    const startGeneration = micStartGenerationRef.current + 1
+    micStartGenerationRef.current = startGeneration
+    pendingMicRestartRef.current = false
+    if (restartMicTimerRef.current !== null) {
+      window.clearTimeout(restartMicTimerRef.current)
+      restartMicTimerRef.current = null
+    }
     try {
       const audioContext = getAudioContext()
       if (audioContext.state === 'suspended') {
@@ -174,6 +200,10 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
         },
         video: false,
       })
+      if (startGeneration !== micStartGenerationRef.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
       const source = audioContext.createMediaStreamSource(stream)
       const dryGainNode = audioContext.createGain()
       const wetGainNode = audioContext.createGain()
@@ -278,17 +308,24 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       setStatus('Mic on (monitoring live audio)')
       fadeMicGain(0)
     } catch (error) {
+      if (startGeneration !== micStartGenerationRef.current) return
+      micOnRef.current = false
+      setMicOn(false)
       setStatus(`Mic error: ${error instanceof Error ? error.message : 'unknown error'}`)
     }
   }, [createImpulseResponse, fadeMicGain, getAudioContext, refreshAudioInputs, setStatus])
 
   const toggleMic = useCallback(() => {
-    if (micOn) {
+    if (
+      micOnRef.current
+      || pendingMicRestartRef.current
+      || stopMicTimerRef.current !== null
+    ) {
       stopMic()
       return
     }
     void startMic(selectedAudioInputId)
-  }, [micOn, selectedAudioInputId, startMic, stopMic])
+  }, [selectedAudioInputId, startMic, stopMic])
 
   const setMonitorLevel = useCallback((level: number) => {
     const audioContext = audioContextRef.current
@@ -402,21 +439,44 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       hasSeenInitialDeviceSelectionRef.current = true
       return
     }
-    if (!micOnRef.current) return
+    if (!micOnRef.current && !pendingMicRestartRef.current) return
+    pendingMicRestartRef.current = true
+    if (restartMicTimerRef.current !== null) {
+      window.clearTimeout(restartMicTimerRef.current)
+    }
     setStatus('Switching mic input...')
-    stopMic()
-    window.setTimeout(() => {
+    if (micOnRef.current) stopMic(false)
+    restartMicTimerRef.current = window.setTimeout(() => {
+      restartMicTimerRef.current = null
+      pendingMicRestartRef.current = false
       void startMic(selectedAudioInputId)
     }, 60)
+
+    return () => {
+      if (restartMicTimerRef.current !== null) {
+        window.clearTimeout(restartMicTimerRef.current)
+        restartMicTimerRef.current = null
+      }
+    }
   }, [selectedAudioInputId, setStatus, startMic, stopMic])
 
   useEffect(() => {
     return () => {
-      stopMic()
+      micStartGenerationRef.current += 1
+      pendingMicRestartRef.current = false
+      if (stopMicTimerRef.current !== null) {
+        window.clearTimeout(stopMicTimerRef.current)
+        stopMicTimerRef.current = null
+      }
+      if (restartMicTimerRef.current !== null) {
+        window.clearTimeout(restartMicTimerRef.current)
+        restartMicTimerRef.current = null
+      }
+      releaseMicResources()
       void audioContextRef.current?.close()
       audioContextRef.current = null
     }
-  }, [stopMic])
+  }, [releaseMicResources])
 
   return {
     micOn,
