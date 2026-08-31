@@ -48,6 +48,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const smoothedTremoloDepthRef = useRef(0)
   const smoothedTremoloRateRef = useRef(DEFAULT_TREMOLO_RATE_HZ)
   const micOnRef = useRef(false)
+  const micStartingRef = useRef(false)
   const micStartGenerationRef = useRef(0)
   const stopMicTimerRef = useRef<number | null>(null)
   const restartMicTimerRef = useRef<number | null>(null)
@@ -140,6 +141,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
 
   const stopMic = useCallback((cancelPendingRestart = true) => {
     micStartGenerationRef.current += 1
+    micStartingRef.current = false
     micOnRef.current = false
     if (cancelPendingRestart) {
       pendingMicRestartRef.current = false
@@ -181,6 +183,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const startMic = useCallback(async (deviceId?: string) => {
     const startGeneration = micStartGenerationRef.current + 1
     micStartGenerationRef.current = startGeneration
+    micStartingRef.current = true
     pendingMicRestartRef.current = false
     if (restartMicTimerRef.current !== null) {
       window.clearTimeout(restartMicTimerRef.current)
@@ -302,6 +305,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       smoothedMonitorLevelRef.current = 0
       smoothedTremoloDepthRef.current = 0
       smoothedTremoloRateRef.current = DEFAULT_TREMOLO_RATE_HZ
+      micStartingRef.current = false
       micOnRef.current = true
       setMicOn(true)
       await refreshAudioInputs()
@@ -309,6 +313,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       fadeMicGain(0)
     } catch (error) {
       if (startGeneration !== micStartGenerationRef.current) return
+      micStartingRef.current = false
       micOnRef.current = false
       setMicOn(false)
       setStatus(`Mic error: ${error instanceof Error ? error.message : 'unknown error'}`)
@@ -318,6 +323,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   const toggleMic = useCallback(() => {
     if (
       micOnRef.current
+      || micStartingRef.current
       || pendingMicRestartRef.current
       || stopMicTimerRef.current !== null
     ) {
@@ -439,13 +445,17 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
       hasSeenInitialDeviceSelectionRef.current = true
       return
     }
-    if (!micOnRef.current && !pendingMicRestartRef.current) return
+    if (
+      !micOnRef.current
+      && !micStartingRef.current
+      && !pendingMicRestartRef.current
+    ) return
     pendingMicRestartRef.current = true
     if (restartMicTimerRef.current !== null) {
       window.clearTimeout(restartMicTimerRef.current)
     }
     setStatus('Switching mic input...')
-    if (micOnRef.current) stopMic(false)
+    if (micOnRef.current || micStartingRef.current) stopMic(false)
     restartMicTimerRef.current = window.setTimeout(() => {
       restartMicTimerRef.current = null
       pendingMicRestartRef.current = false
@@ -463,6 +473,7 @@ export function useMicMonitor({ setStatus }: UseMicMonitorArgs) {
   useEffect(() => {
     return () => {
       micStartGenerationRef.current += 1
+      micStartingRef.current = false
       pendingMicRestartRef.current = false
       if (stopMicTimerRef.current !== null) {
         window.clearTimeout(stopMicTimerRef.current)
